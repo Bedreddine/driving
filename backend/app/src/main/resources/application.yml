@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: taxi
+  jackson:
+    # The app sends and reads snake_case JSON (pickup_at, ride_id...).
+    property-naming-strategy: SNAKE_CASE
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/taxi}
+    username: ${DATABASE_USER:taxi}
+    password: ${DATABASE_PASSWORD:taxi}
+  flyway:
+    locations: classpath:db/migration
+  docker:
+    compose:
+      # `./gradlew :app:bootRun` starts PostgreSQL from app/compose.yaml automatically (development only).
+      lifecycle-management: start-only
+
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+
+taxi:
+  security:
+    jwt-secret: ${JWT_SECRET:}
+    access-token-ttl: 15m
+    refresh-token-ttl: 30d
+    # Browser origins of the back office, comma separated (e.g. https://admin.example.com)
+    cors-origins: ${CORS_ORIGINS:http://localhost:8081,http://localhost:19006}
+  routing:
+    # Public demo server: fine for testing. Run your own OSRM for real traffic.
+    osrm-url: ${OSRM_URL:https://router.project-osrm.org}
+  push:
+    enabled: ${PUSH_ENABLED:true}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,modulith

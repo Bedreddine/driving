@@ -1,0 +1,10 @@
+# Local PostgreSQL, started automatically by `./gradlew :app:bootRun` (Spring Boot Docker Compose support).
+services:
+  postgres:
+    image: 'postgres:17'
+    environment:
+      - 'POSTGRES_DB=taxi'
+      - 'POSTGRES_USER=taxi'
+      - 'POSTGRES_PASSWORD=taxi'
+    ports:
+      - '5432'
