@@ -218,6 +218,19 @@ All instants are stored as `timestamptz`. Working hours, `time_off` entry, surch
 | Payments (phase 2) | Stripe | Per-transaction fee |
 | Back office hosting | Vercel | Free tier to start |
 
+## Changes made while building (2026-09-26)
+
+The user asked for no paid services and reliable open-source tools, then asked to build everything. These changes to the plan above were made during implementation:
+
+- **One Expo codebase** builds the iPhone app, the Android app **and** the back-office website (`apps/mobile/src/app/admin`). No separate Next.js app.
+- **OpenStreetMap instead of Google:** Photon for address search, OSRM for road distance and time. Both servers can be self-hosted; their addresses are settings. OSRM times are typical road times, **not traffic-aware**.
+- **Email:** Supabase's built-in auth email or any SMTP server, instead of Resend.
+- **Zones are circles** (center + radius), not polygons. A whole city is a large circle.
+- **Every ride has a driver** from the start: customer requests go to the default active driver. The "unassigned requests" rule is not needed until there's a second driver.
+- **Neighbour rides** for the travel-time check are limited to 12 hours before and after the pickup.
+- **Price proposals** leave the customer at least 30 minutes to answer (reviewer concern R3-1). Retention, account deletion and quick-add time-off rules were settled as the reviewer suggested (R3-3 to R3-8). The taxi branch hides price proposals (R3-2).
+- **Push notifications** are stored in an outbox and shown live in the app. Sending them to phones needs the `push-dispatch` function to be scheduled (see README).
+
 ## Open Questions
 
 1. **Taxi licence or VTC? Which city?** Decides the pricing flow (see Pricing legal gate), map defaults and fixed prices. Blocks pricing work.
