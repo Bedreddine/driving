@@ -5,7 +5,7 @@ import { deleteMyAccount } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { confirmAsk } from '@/lib/confirm';
 import type { Lang } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { forgetSession, api } from '@/lib/http';
 
 export default function Account() {
   const { profile } = useAuth();
@@ -24,11 +24,11 @@ function AccountForm() {
 
   const save = async () => {
     if (!profile) return;
-    const { error: e } = await supabase
-      .from('profiles')
-      .update({ full_name: name.trim(), phone: phone.trim() || null })
-      .eq('id', profile.id);
-    if (e) return setError(err('generic'));
+    try {
+      await api.patch('/api/me', { full_name: name.trim(), phone: phone.trim() });
+    } catch (e) {
+      return setError(err((e as Error).message));
+    }
     setSaved(true);
     await reloadProfile();
   };
@@ -38,7 +38,7 @@ function AccountForm() {
     setBusy(true);
     try {
       await deleteMyAccount();
-      await signOut();
+      forgetSession();
       router.replace('/sign-in');
     } catch (e) {
       setError(err((e as Error).message));

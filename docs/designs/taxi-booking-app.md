@@ -231,6 +231,17 @@ The user asked for no paid services and reliable open-source tools, then asked t
 - **Price proposals** leave the customer at least 30 minutes to answer (reviewer concern R3-1). Retention, account deletion and quick-add time-off rules were settled as the reviewer suggested (R3-3 to R3-8). The taxi branch hides price proposals (R3-2).
 - **Push notifications** are stored in an outbox and shown live in the app. Sending them to phones needs the `push-dispatch` function to be scheduled (see README).
 
+### Backend moved to Spring Boot (2026-09-26, later the same day)
+
+The user asked for Gradle + Spring Boot + Java 21 as a microservice monorepo, then chose a **modular monolith** over separate services, **replacing Supabase fully**:
+
+- `backend/`: Gradle multi-module monorepo, Java 21, Spring Boot 4.1.1 (latest stable; Spring Boot has no "LTS", Java 21 is the LTS part). Modules `identity`, `pricing`, `booking`, `notification` (+ `shared`), boundaries verified by Spring Modulith. Each module can become its own service later.
+- PostgreSQL 17 + Flyway. The database still guarantees no overlapping slot-holding rides (exclusion constraint); every slot-reserving change locks the driver row first. Business rules moved from SQL functions to Java services.
+- Login: Spring Security, email + password, JWT access tokens (15 min) + single-use refresh tokens (30 days). No Row Level Security: access is checked in the services and covered by integration tests.
+- Scheduled jobs, phone push (Expo) and live updates (WebSocket `/ws`) run inside the backend. With several instances, jobs need a lock (ShedLock).
+- Contact link suggestions no longer distinguish verified emails: email verification and password reset need an SMTP sender and are not built yet.
+- Tests: 46 backend tests on a real PostgreSQL (Testcontainers), including module boundaries and WebSocket live updates.
+
 ## Open Questions
 
 1. **Taxi licence or VTC? Which city?** Decides the pricing flow (see Pricing legal gate), map defaults and fixed prices. Blocks pricing work.

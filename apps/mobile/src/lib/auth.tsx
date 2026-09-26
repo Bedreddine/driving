@@ -1,15 +1,14 @@
-import type { Session } from '@supabase/supabase-js';
 import { getLocales } from 'expo-localization';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { api, isSignedIn, onAuthChange, signOut as httpSignOut } from './http';
 import { errorText, translate, type Lang, type TextKey } from './i18n';
-import { supabase } from './supabase';
 
 export type Role = 'customer' | 'driver' | 'admin';
-export type Profile = { id: string; full_name: string; phone: string | null; language: Lang };
+export type Profile = { id: string; email: string; full_name: string; phone: string | null; language: Lang; roles: Role[] };
 
 type AuthState = {
   loading: boolean;
-  session: Session | null;
+  signedIn: boolean;
   profile: Profile | null;
   roles: Role[];
   lang: Lang;
@@ -25,61 +24,53 @@ const AuthContext = createContext<AuthState | null>(null);
 const deviceLang = (): Lang => (getLocales()[0]?.languageCode === 'en' ? 'en' : 'fr');
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [signedIn, setSignedIn] = useState(isSignedIn);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(isSignedIn);
 
-  const loadProfile = useCallback(async (s: Session | null) => {
-    if (!s) {
-      setProfile(null);
-      setRoles([]);
-      return;
-    }
-    const [{ data: p }, { data: r }] = await Promise.all([
-      supabase.from('profiles').select('id, full_name, phone, language').eq('id', s.user.id).maybeSingle(),
-      supabase.from('user_roles').select('role').eq('user_id', s.user.id),
-    ]);
-    setProfile((p as Profile | null) ?? null);
-    setRoles(((r ?? []) as { role: Role }[]).map((x) => x.role));
-  }, []);
+  const loadProfile = useCallback(
+    () =>
+      api
+        .get<Profile>('/api/me')
+        .then(setProfile)
+        .catch(() => setProfile(null))
+        .finally(() => setLoading(false)),
+    [],
+  );
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      setSession(data.session);
-      await loadProfile(data.session);
-      setLoading(false);
+    if (isSignedIn()) void loadProfile();
+    return onAuthChange((now) => {
+      setSignedIn(now);
+      if (now) {
+        setLoading(true);
+        void loadProfile();
+      } else {
+        setProfile(null);
+        setLoading(false);
+      }
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      // Do not await inside the callback (supabase-js deadlock rule); load afterwards.
-      setTimeout(() => void loadProfile(s), 0);
-    });
-    return () => sub.subscription.unsubscribe();
   }, [loadProfile]);
 
   const lang: Lang = profile?.language ?? deviceLang();
+  const roles = useMemo(() => profile?.roles ?? [], [profile]);
 
   const value = useMemo<AuthState>(
     () => ({
       loading,
-      session,
+      signedIn,
       profile,
       roles,
       lang,
       t: (key) => translate(lang, key),
       err: (code) => errorText(lang, code),
       setLanguage: async (l) => {
-        if (!profile) return;
-        await supabase.from('profiles').update({ language: l }).eq('id', profile.id);
-        setProfile({ ...profile, language: l });
+        setProfile(await api.patch<Profile>('/api/me', { language: l }));
       },
-      reloadProfile: () => loadProfile(session),
-      signOut: async () => {
-        await supabase.auth.signOut();
-      },
+      reloadProfile: loadProfile,
+      signOut: httpSignOut,
     }),
-    [loading, session, profile, roles, lang, loadProfile],
+    [loading, signedIn, profile, roles, lang, loadProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

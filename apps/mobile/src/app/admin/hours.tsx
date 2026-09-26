@@ -1,39 +1,33 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { Button, Card, ErrorText, Field, Muted, Notice, Row, styles, Title, Toggle } from '@/components/ui';
-import { getDriver } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { dayNames } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/http';
 
 type Day = { enabled: boolean; start: string; end: string };
 const ORDER = [1, 2, 3, 4, 5, 6, 0]; // Monday first
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-async function fetchHours(): Promise<{ driverId: string; days: Day[] } | null> {
-  const driver = await getDriver();
-  if (!driver) return null;
-  const { data } = await supabase.from('working_hours').select('weekday, start_time, end_time').eq('driver_id', driver.id);
+type Hours = { weekday: number; start_time: string; end_time: string };
+
+async function fetchHours(): Promise<Day[]> {
+  const rows = await api.get<Hours[]>('/api/admin/working-hours');
   const days = Array.from({ length: 7 }, () => ({ enabled: false, start: '06:00', end: '22:00' }));
-  for (const h of (data ?? []) as { weekday: number; start_time: string; end_time: string }[]) {
+  for (const h of rows) {
     days[h.weekday] = { enabled: true, start: h.start_time.slice(0, 5), end: h.end_time.slice(0, 5) };
   }
-  return { driverId: driver.id, days };
+  return days;
 }
 
 export default function AdminHours() {
   const { t, err, lang } = useAuth();
-  const [driverId, setDriverId] = useState<string | null>(null);
   const [days, setDays] = useState<Day[]>(() => Array.from({ length: 7 }, () => ({ enabled: false, start: '06:00', end: '22:00' })));
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    void fetchHours().then((r) => {
-      if (!r) return;
-      setDriverId(r.driverId);
-      setDays(r.days);
-    });
+    void fetchHours().then(setDays);
   }, []);
 
   const update = (d: number, patch: Partial<Day>) => {
@@ -42,21 +36,17 @@ export default function AdminHours() {
   };
 
   const save = async () => {
-    if (!driverId) return;
     const rows = days
       .map((d, weekday) => ({ ...d, weekday }))
       .filter((d) => d.enabled);
     if (rows.some((d) => !TIME.test(d.start) || !TIME.test(d.end) || d.start >= d.end)) return setError(err('BAD_INPUT'));
     setError(null);
-    const del = await supabase.from('working_hours').delete().eq('driver_id', driverId);
-    if (del.error) return setError(err('generic'));
-    if (rows.length) {
-      const ins = await supabase
-        .from('working_hours')
-        .insert(rows.map((d) => ({ driver_id: driverId, weekday: d.weekday, start_time: d.start, end_time: d.end })));
-      if (ins.error) return setError(err('generic'));
+    try {
+      await api.put('/api/admin/working-hours', rows.map((d) => ({ weekday: d.weekday, start_time: d.start, end_time: d.end })));
+      setSaved(true);
+    } catch (e) {
+      setError(err((e as Error).message));
     }
-    setSaved(true);
   };
 
   const names = dayNames(lang);

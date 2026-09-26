@@ -8,7 +8,7 @@ import { registerForPush } from '@/lib/push';
 function PushRegistration() {
   const { profile } = useAuth();
   useEffect(() => {
-    if (profile) void registerForPush(profile.id);
+    if (profile) void registerForPush();
   }, [profile]);
   return null;
 }

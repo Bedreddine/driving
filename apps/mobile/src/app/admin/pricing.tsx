@@ -7,7 +7,7 @@ import { getDriver } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { dayNames, type TextKey } from '@/lib/i18n';
 import { formatPrice, parsePrice } from '@/lib/format';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/http';
 
 type Settings = {
   driver_id: string;
@@ -38,18 +38,10 @@ const minuteLabels: Record<(typeof minuteFields)[number], TextKey> = {
 async function fetchPricing() {
   const driver = await getDriver();
   if (!driver) return null;
-  const [s, z, f, sc] = await Promise.all([
-    supabase.from('pricing_settings').select('*').eq('driver_id', driver.id).maybeSingle(),
-    supabase.from('zones').select('id, name, kind, radius_m').order('name'),
-    supabase.from('fixed_prices').select('id, from_zone, to_zone, price, both_directions').eq('driver_id', driver.id),
-    supabase.from('surcharges').select('id, name, days, start_time, end_time, percent').eq('driver_id', driver.id),
-  ]);
-  return {
-    settings: s.data as Settings | null,
-    zones: (z.data as Zone[]) ?? [],
-    fixed: (f.data as Fixed[]) ?? [],
-    surcharges: (sc.data as Surcharge[]) ?? [],
-  };
+  const all = await api.get<{ settings: Settings; zones: Zone[]; fixed_prices: Fixed[]; surcharges: Surcharge[] }>(
+    `/api/admin/pricing/${driver.id}`,
+  );
+  return { settings: all.settings, zones: all.zones, fixed: all.fixed_prices, surcharges: all.surcharges };
 }
 
 export default function AdminPricing() {
@@ -95,14 +87,23 @@ export default function AdminPricing() {
     void load();
   }, [load]);
 
-  const check = (e: { message: string } | null) => {
-    setError(e ? err('generic') : null);
-    return !e;
+  /** Runs a change, shows its error if any, reloads on success. */
+  const mutate = async (fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+      setError(null);
+      await load();
+      return true;
+    } catch (e) {
+      setError(err((e as Error).message));
+      return false;
+    }
   };
 
   const saveSettings = async () => {
     if (!settings) return;
     const update: Record<string, number | string> = { licence: settings.licence };
+    const driverId = settings.driver_id;
     for (const k of moneyFields) {
       const v = parsePrice(form[k] ?? '');
       if (v === null) return setError(err('BAD_INPUT'));
@@ -113,10 +114,7 @@ export default function AdminPricing() {
       if (!Number.isInteger(v) || v < 0) return setError(err('BAD_INPUT'));
       update[k] = v;
     }
-    if (check((await supabase.from('pricing_settings').update(update).eq('driver_id', settings.driver_id)).error)) {
-      setSaved(true);
-      await load();
-    }
+    if (await mutate(() => api.put(`/api/admin/pricing/${driverId}/settings`, update))) setSaved(true);
   };
 
   const zoneName_ = (id: string) => zones.find((z) => z.id === id)?.name ?? '?';
@@ -171,7 +169,7 @@ export default function AdminPricing() {
               {s.name}: +{s.percent}% · {s.days.map((d) => dayNames(lang)[d]).join(' ')} ·{' '}
               {s.start_time.slice(0, 5)} → {s.end_time.slice(0, 5)}
             </Text>
-            <Button kind="danger" title={t('delete')} onPress={async () => check((await supabase.from('surcharges').delete().eq('id', s.id)).error) && load()} />
+            <Button kind="danger" title={t('delete')} onPress={() => void mutate(() => api.del(`/api/admin/surcharges/${s.id}`))} />
           </Row>
         ))}
         <Row style={{ gap: 8, flexWrap: 'wrap' }}>
@@ -197,20 +195,8 @@ export default function AdminPricing() {
             if (!scName.trim() || pct === null || !/^\d\d:\d\d$/.test(scStart) || !/^\d\d:\d\d$/.test(scEnd) || !scDays.length) {
               return setError(err('BAD_INPUT'));
             }
-            const e = (
-              await supabase.from('surcharges').insert({
-                driver_id: settings.driver_id,
-                name: scName.trim(),
-                days: scDays,
-                start_time: scStart,
-                end_time: scEnd,
-                percent: pct,
-              })
-            ).error;
-            if (check(e)) {
-              setScName('');
-              await load();
-            }
+            const body = { name: scName.trim(), days: scDays, start_time: scStart, end_time: scEnd, percent: pct };
+            if (await mutate(() => api.post(`/api/admin/pricing/${settings.driver_id}/surcharges`, body))) setScName('');
           }}
         />
       </Card>
@@ -223,7 +209,7 @@ export default function AdminPricing() {
             <Text style={styles.text}>
               {z.name} · {t(`zone_${z.kind}`)} · {z.radius_m} m
             </Text>
-            <Button kind="danger" title={t('delete')} onPress={async () => check((await supabase.from('zones').delete().eq('id', z.id)).error) && load()} />
+            <Button kind="danger" title={t('delete')} onPress={() => void mutate(() => api.del(`/api/admin/zones/${z.id}`))} />
           </Row>
         ))}
         <AddressInput label={t('center')} value={zonePlace} onChange={(p) => (setZonePlace(p), p && !zoneName && setZoneName(p.address.split(',')[0]))} />
@@ -250,19 +236,10 @@ export default function AdminPricing() {
           onPress={async () => {
             const radius = Number(zoneRadius);
             if (!zonePlace || !zoneName.trim() || !Number.isInteger(radius) || radius <= 0) return setError(err('BAD_INPUT'));
-            const e = (
-              await supabase.from('zones').insert({
-                name: zoneName.trim(),
-                kind: zoneKind,
-                center_lat: zonePlace.lat,
-                center_lng: zonePlace.lng,
-                radius_m: radius,
-              })
-            ).error;
-            if (check(e)) {
+            const body = { name: zoneName.trim(), kind: zoneKind, center_lat: zonePlace.lat, center_lng: zonePlace.lng, radius_m: radius };
+            if (await mutate(() => api.post('/api/admin/zones', body))) {
               setZonePlace(null);
               setZoneName('');
-              await load();
             }
           }}
         />
@@ -275,7 +252,7 @@ export default function AdminPricing() {
             <Text style={styles.text}>
               {zoneName_(f.from_zone)} {f.both_directions ? '↔' : '→'} {zoneName_(f.to_zone)}: {formatPrice(f.price, settings.currency, lang)}
             </Text>
-            <Button kind="danger" title={t('delete')} onPress={async () => check((await supabase.from('fixed_prices').delete().eq('id', f.id)).error) && load()} />
+            <Button kind="danger" title={t('delete')} onPress={() => void mutate(() => api.del(`/api/admin/fixed-prices/${f.id}`))} />
           </Row>
         ))}
         <Label>{t('from')}</Label>
@@ -289,13 +266,8 @@ export default function AdminPricing() {
           onPress={async () => {
             const p = parsePrice(fxPrice);
             if (!fxFrom || !fxTo || p === null) return setError(err('BAD_INPUT'));
-            const e = (
-              await supabase.from('fixed_prices').insert({ driver_id: settings.driver_id, from_zone: fxFrom, to_zone: fxTo, price: p })
-            ).error;
-            if (check(e)) {
-              setFxPrice('');
-              await load();
-            }
+            const body = { from_zone: fxFrom, to_zone: fxTo, price: p };
+            if (await mutate(() => api.post(`/api/admin/pricing/${settings.driver_id}/fixed-prices`, body))) setFxPrice('');
           }}
         />
       </Card>

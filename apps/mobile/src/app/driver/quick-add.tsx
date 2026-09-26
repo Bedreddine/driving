@@ -6,7 +6,7 @@ import { Button, Card, ErrorText, Field, Label, Row, Screen, Segmented, styles, 
 import type { BookingInput } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { parsePrice } from '@/lib/format';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/http';
 
 type Contact = { id: string; full_name: string; phone: string | null };
 type Source = NonNullable<BookingInput['source']>;
@@ -25,35 +25,28 @@ export default function QuickAdd() {
   const [agreed, setAgreed] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // Characters that would break the search filter are removed.
-  const q = query.replace(/[,()%*\\]/g, ' ').trim();
+  const q = query.trim();
   const visibleResults = q.length < 2 ? [] : results;
 
   useEffect(() => {
     if (q.length < 2) return;
     const timer = setTimeout(async () => {
-      const { data } = await supabase
-        .from('contacts')
-        .select('id, full_name, phone')
-        .is('anonymized_at', null)
-        .or(`full_name.ilike.%${q}%,phone.ilike.%${q}%`)
-        .order('full_name')
-        .limit(8);
-      setResults((data as Contact[]) ?? []);
+      const found = await api.get<Contact[]>(`/api/contacts?limit=8&q=${encodeURIComponent(q)}`).catch(() => []);
+      setResults(found);
     }, 250);
     return () => clearTimeout(timer);
   }, [q]);
 
   const createContact = async () => {
     setError(null);
-    const { data, error: e } = await supabase
-      .from('contacts')
-      .insert({ full_name: newName.trim(), phone: newPhone.trim() || null, notice_given: notice })
-      .select('id, full_name, phone')
-      .single();
-    if (e) return setError(err('generic'));
-    setContact(data as Contact);
-    setCreating(false);
+    try {
+      setContact(
+        await api.post<Contact>('/api/contacts', { full_name: newName.trim(), phone: newPhone.trim() || null, notice_given: notice }),
+      );
+      setCreating(false);
+    } catch (e) {
+      setError(err((e as Error).message));
+    }
   };
 
   const agreedPrice = agreed.trim() ? parsePrice(agreed) : undefined;

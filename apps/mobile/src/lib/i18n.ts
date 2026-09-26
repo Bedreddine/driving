@@ -12,7 +12,6 @@ const fr = {
   phone: 'Téléphone',
   noAccount: 'Pas encore de compte ?',
   haveAccount: 'Déjà un compte ?',
-  checkEmail: 'Compte créé. Vérifiez votre e-mail si une confirmation est demandée, puis connectez-vous.',
   // booking
   bookRide: 'Réserver une course',
   from: 'Départ',
@@ -163,6 +162,15 @@ const fr = {
   err_BAD_INPUT: 'Vérifiez les informations saisies.',
   err_STAFF_ACCOUNT: 'Le compte du chauffeur ne peut pas être supprimé ici.',
   err_UNAUTHENTICATED: 'Reconnectez-vous.',
+  err_EMAIL_TAKEN: 'Un compte existe déjà avec cet e-mail.',
+  err_WEAK_PASSWORD: 'Le mot de passe doit faire au moins 8 caractères.',
+  err_BAD_EMAIL: 'Adresse e-mail invalide.',
+  err_INVALID_CREDENTIALS: 'E-mail ou mot de passe incorrect.',
+  err_NETWORK: 'Pas de connexion au serveur. Vérifiez internet et réessayez.',
+  err_CONTACT_REQUIRED: 'Choisissez un client.',
+  err_NOT_FOUND: 'Introuvable.',
+  err_BAD_LINK: 'Ces deux fiches ne peuvent pas être reliées.',
+  err_BAD_PRICE: 'Prix invalide.',
 };
 
 type Dict = typeof fr;
@@ -178,7 +186,6 @@ const en: Dict = {
   phone: 'Phone',
   noAccount: 'No account yet?',
   haveAccount: 'Already have an account?',
-  checkEmail: 'Account created. Check your email if confirmation is required, then sign in.',
   bookRide: 'Book a ride',
   from: 'From',
   to: 'To',
@@ -321,6 +328,15 @@ const en: Dict = {
   err_BAD_INPUT: 'Please check what you entered.',
   err_STAFF_ACCOUNT: "The driver's account cannot be deleted here.",
   err_UNAUTHENTICATED: 'Please sign in again.',
+  err_EMAIL_TAKEN: 'An account already exists with this email.',
+  err_WEAK_PASSWORD: 'The password needs at least 8 characters.',
+  err_BAD_EMAIL: 'Invalid email address.',
+  err_INVALID_CREDENTIALS: 'Wrong email or password.',
+  err_NETWORK: 'Cannot reach the server. Check your connection and try again.',
+  err_CONTACT_REQUIRED: 'Choose a customer.',
+  err_NOT_FOUND: 'Not found.',
+  err_BAD_LINK: 'These two records cannot be linked.',
+  err_BAD_PRICE: 'Invalid price.',
 };
 
 export type Lang = 'fr' | 'en';

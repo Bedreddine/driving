@@ -32,4 +32,10 @@ dependencies {
 // Local runs get a development-only token secret; production must set JWT_SECRET.
 tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
     environment("JWT_SECRET", System.getenv("JWT_SECRET") ?: "local-development-secret-change-me-0123456789")
+    systemProperty("spring.profiles.active", System.getenv("SPRING_PROFILES_ACTIVE") ?: "dev")
+}
+
+// Only the runnable jar is useful for this module.
+tasks.named<Jar>("jar") {
+    enabled = false
 }

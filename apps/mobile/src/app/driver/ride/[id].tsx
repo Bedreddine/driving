@@ -8,7 +8,7 @@ import { useLicence } from '@/lib/useLicence';
 export default function DriverRide() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [ride, setRide] = useState<Ride | null | undefined>(undefined);
-  const licence = useLicence(ride?.driver_id);
+  const licence = useLicence();
 
   const load = useCallback(() => void getRide(id).then(setRide), [id]);
   useEffect(load, [load]);

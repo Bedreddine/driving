@@ -5,18 +5,14 @@
     "apps/*"
   ],
   "scripts": {
-    "db:start": "supabase start",
-    "db:stop": "supabase stop",
-    "db:reset": "supabase db reset",
-    "db:test": "supabase test db",
-    "test:functions": "vitest run --root supabase/functions",
-    "mobile": "npm --workspace apps/mobile run start",
-    "web": "npm --workspace apps/mobile run web",
+    "backend": "cd backend && ./gradlew :app:bootRun",
+    "test:backend": "cd backend && ./gradlew test",
     "test:app": "vitest run --root apps/mobile/src",
-    "test": "npm run test:functions && npm run test:app && npm run db:test"
+    "test": "npm run test:backend && npm run test:app",
+    "mobile": "npm --workspace apps/mobile run start",
+    "web": "npm --workspace apps/mobile run web"
   },
   "devDependencies": {
-    "supabase": "^2",
     "vitest": "^3"
   }
 }

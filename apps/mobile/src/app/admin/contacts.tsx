@@ -3,10 +3,10 @@ import { ScrollView, Text, View } from 'react-native';
 import { Button, Card, ErrorText, Field, Label, Muted, Row, styles, Title } from '@/components/ui';
 import { linkContacts } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/http';
 
-type Contact = { id: string; full_name: string; phone: string | null; email: string | null; profile_id: string | null; notice_given: boolean };
-type Suggestion = { account_contact_id: string; existing_contact_id: string; match: 'verified_email' | 'phone_unverified' };
+type Contact = { id: string; full_name: string; phone: string | null; email: string | null; user_id: string | null; notice_given: boolean };
+type Suggestion = { account_contact_id: string; existing_contact_id: string; match: 'email' | 'phone' };
 
 export default function AdminContacts() {
   const { t, err } = useAuth();
@@ -19,16 +19,11 @@ export default function AdminContacts() {
 
   const load = useCallback(() =>
     Promise.all([
-      supabase
-        .from('contacts')
-        .select('id, full_name, phone, email, profile_id, notice_given')
-        .is('anonymized_at', null)
-        .order('full_name')
-        .limit(1000),
-      supabase.rpc('contact_link_suggestions'),
-    ]).then(([{ data: c }, { data: s }]) => {
-      setContacts((c as Contact[]) ?? []);
-      setSuggestions((s as Suggestion[]) ?? []);
+      api.get<Contact[]>('/api/contacts?limit=1000'),
+      api.get<Suggestion[]>('/api/admin/contact-links'),
+    ]).then(([c, s]) => {
+      setContacts(c);
+      setSuggestions(s);
     }), []);
   useEffect(() => {
     void load();
@@ -36,12 +31,10 @@ export default function AdminContacts() {
 
   useEffect(() => {
     if (!selected) return;
-    void supabase
-      .from('contact_notes')
-      .select('notes')
-      .eq('contact_id', selected.id)
-      .maybeSingle()
-      .then(({ data }) => setNotes((data?.notes as string) ?? ''));
+    void api
+      .get<{ notes: string }>(`/api/contacts/${selected.id}/notes`)
+      .then((r) => setNotes(r.notes))
+      .catch(() => setNotes(''));
   }, [selected]);
 
   const byId = new Map(contacts.map((c) => [c.id, c]));
@@ -52,8 +45,12 @@ export default function AdminContacts() {
 
   const saveNotes = async () => {
     if (!selected) return;
-    const { error: e } = await supabase.from('contact_notes').upsert({ contact_id: selected.id, notes, updated_at: new Date().toISOString() });
-    setError(e ? err('generic') : null);
+    try {
+      await api.put(`/api/contacts/${selected.id}/notes`, { notes });
+      setError(null);
+    } catch (e) {
+      setError(err((e as Error).message));
+    }
   };
 
   return (
@@ -70,7 +67,7 @@ export default function AdminContacts() {
               <Row key={`${s.account_contact_id}-${s.existing_contact_id}`} style={{ justifyContent: 'space-between', gap: 8 }}>
                 <Text style={[styles.text, { flex: 1 }]}>
                   {a?.full_name} ({a?.email}) ↔ {e?.full_name} ({e?.phone ?? e?.email}) ·{' '}
-                  {s.match === 'verified_email' ? '✓ email' : '? phone'}
+                  {s.match === 'email' ? '@ email' : '☎ phone'}
                 </Text>
                 <Button
                   kind="secondary"
@@ -97,7 +94,7 @@ export default function AdminContacts() {
           {shown.map((c) => (
             <Card key={c.id} style={selected?.id === c.id ? { borderColor: '#1F3A5F', borderWidth: 2 } : undefined}>
               <Text style={[styles.text, { fontWeight: '600' }]} onPress={() => setSelected(c)}>
-                {c.full_name} {c.profile_id ? '📱' : ''}
+                {c.full_name} {c.user_id ? '📱' : ''}
               </Text>
               <Muted>{[c.phone, c.email].filter(Boolean).join(' · ') || '—'}</Muted>
             </Card>

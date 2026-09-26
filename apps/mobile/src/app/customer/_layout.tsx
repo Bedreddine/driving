@@ -3,8 +3,8 @@ import { colors } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 
 export default function CustomerLayout() {
-  const { session, loading, t } = useAuth();
-  if (!loading && !session) return <Redirect href="/sign-in" />;
+  const { signedIn, loading, t } = useAuth();
+  if (!loading && !signedIn) return <Redirect href="/sign-in" />;
   return (
     <Stack
       screenOptions={{

@@ -3,8 +3,8 @@ import { colors } from '@/components/ui';
 import { isStaff, useAuth } from '@/lib/auth';
 
 export default function DriverLayout() {
-  const { session, loading, roles, t } = useAuth();
-  if (!loading && !session) return <Redirect href="/sign-in" />;
+  const { signedIn, loading, roles, t } = useAuth();
+  if (!loading && !signedIn) return <Redirect href="/sign-in" />;
   if (!loading && roles.length > 0 && !isStaff(roles)) return <Redirect href="/customer" />;
   return (
     <Stack screenOptions={{ headerTintColor: colors.primary, contentStyle: { backgroundColor: colors.bg } }}>

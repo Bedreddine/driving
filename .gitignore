@@ -6,8 +6,6 @@ web-build/
 .DS_Store
 .env
 .env.local
-supabase/.branches/
-supabase/.temp/
 ios/
 android/
 coverage/

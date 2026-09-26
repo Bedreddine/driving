@@ -64,7 +64,7 @@ class PricingAdminController {
         return Map.of(
                 "settings", settings,
                 "zones", repo.zones(),
-                "fixedPrices", repo.fixedPrices(driverId),
+                "fixed_prices", repo.fixedPrices(driverId),
                 "surcharges", repo.surcharges(driverId));
     }
 

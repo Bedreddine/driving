@@ -3,25 +3,29 @@ import { useState } from 'react';
 import { Text } from 'react-native';
 import { Button, ErrorText, Field, Screen, styles, Title } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { signIn } from '@/lib/http';
 
 export default function SignIn() {
-  const { t, session } = useAuth();
+  const { t, err, signedIn } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (session) return <Redirect href="/" />;
+  if (signedIn) return <Redirect href="/" />;
 
   const submit = async () => {
     setBusy(true);
     setError(null);
-    const { error: e } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    setBusy(false);
-    if (e) setError(e.message);
-    else router.replace('/');
+    try {
+      await signIn(email.trim(), password);
+      router.replace('/');
+    } catch (e) {
+      setError(err((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

@@ -14,12 +14,12 @@ const links: { href: '/admin' | '/admin/contacts' | '/admin/pricing' | '/admin/h
 
 /** Back office: a desktop layout with a side menu (top menu on narrow screens), not phone tabs. */
 export default function AdminLayout() {
-  const { session, loading, roles, t, signOut } = useAuth();
+  const { signedIn, loading, roles, t, signOut } = useAuth();
   const path = usePathname();
   const { width } = useWindowDimensions();
   const wide = width >= 900;
 
-  if (!loading && !session) return <Redirect href="/sign-in" />;
+  if (!loading && !signedIn) return <Redirect href="/sign-in" />;
   if (!loading && roles.length > 0 && !roles.includes('admin')) return <Redirect href="/" />;
 
   return (
