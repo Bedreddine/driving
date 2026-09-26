@@ -1,7 +1,9 @@
 {
   "name": "taxi-driver",
   "private": true,
-  "workspaces": ["apps/*"],
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
     "db:start": "supabase start",
     "db:stop": "supabase stop",
@@ -9,7 +11,9 @@
     "db:test": "supabase test db",
     "test:functions": "vitest run --root supabase/functions",
     "mobile": "npm --workspace apps/mobile run start",
-    "web": "npm --workspace apps/mobile run web"
+    "web": "npm --workspace apps/mobile run web",
+    "test:app": "vitest run --root apps/mobile/src",
+    "test": "npm run test:functions && npm run test:app && npm run db:test"
   },
   "devDependencies": {
     "supabase": "^2",
