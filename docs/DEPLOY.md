@@ -136,3 +136,16 @@ Copy the file off the server regularly (a daily `cron` job is enough).
 ## Phone apps
 
 The phone apps are not built by GitHub Actions: use Expo's EAS (`npx eas-cli build`, free tier), with `EXPO_PUBLIC_API_URL=https://book.your-domain.com` in `apps/mobile/eas.json`. See the README.
+
+## The website on GitHub Pages (optional)
+
+The website alone can be served free by GitHub Pages; the server (API + database) still runs on your machine above.
+
+1. The repository must be **public** for free Pages (Settings › General › Danger zone › Change visibility).
+2. **Settings › Pages › Build and deployment › Source: GitHub Actions.**
+3. Actions › **Website on GitHub Pages** › Run workflow. The site appears at `https://bedreddine.github.io/driving/`.
+4. Once the server is online, connect them:
+   - GitHub › Settings › Secrets and variables › Actions › **Variables**: `API_URL` = the server's address (e.g. `https://152-67-12-34.sslip.io`), then run the workflow again.
+   - On the server, in `.env`: `EXTRA_CORS_ORIGINS=https://bedreddine.github.io`, and `SITE_URL=https://bedreddine.github.io/driving` so the QR code and the emailed links open the Pages site; restart.
+
+Until `API_URL` is set, the pages open (map, places, language) but prices, bookings and sign-in need the server.

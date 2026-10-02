@@ -21,7 +21,7 @@ export function ClientTopBar({ name, onBrandPress }: { name: string | null | und
       }}
     >
       <Pressable accessibilityRole="link" onPress={onBrandPress} disabled={!onBrandPress}>
-        <Text style={{ fontFamily: fonts.display, fontSize: 26, color: night.text }}>{name ?? ' '}</Text>
+        <Text style={{ fontFamily: fonts.display, fontSize: 26, color: night.text }}>{name ?? 'Élysée Chauffeur'}</Text>
       </Pressable>
       <View style={{ flexDirection: 'row', gap: 10 }}>
         {(['fr', 'en'] as Lang[]).map((l) => (

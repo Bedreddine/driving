@@ -8,7 +8,8 @@ services:
     pull_policy: always
     environment:
       SITE_URL: https://${DOMAIN:?set DOMAIN in .env}
-      CORS_ORIGINS: https://${DOMAIN}
+      # Also allow the website on GitHub Pages, if used (EXTRA_CORS_ORIGINS=https://bedreddine.github.io).
+      CORS_ORIGINS: https://${DOMAIN}${EXTRA_CORS_ORIGINS:+,${EXTRA_CORS_ORIGINS}}
 
   web:
     image: ghcr.io/${GHCR_OWNER}/driving-web:${IMAGE_TAG:-latest}
