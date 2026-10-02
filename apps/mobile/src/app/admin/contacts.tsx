@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { Button, Card, ErrorText, Field, Label, Muted, Row, styles, Title } from '@/components/ui';
+import { Button, Card, ErrorText, Field, Label, Muted, Notice, Row, styles, Title } from '@/components/ui';
 import { forgetContact, linkContacts } from '@/lib/api';
 import { confirmAsk } from '@/lib/confirm';
 import { useAuth } from '@/lib/auth';
@@ -17,6 +17,7 @@ export default function AdminContacts() {
   const [selected, setSelected] = useState<Contact | null>(null);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notesSaved, setNotesSaved] = useState(false);
 
   const load = useCallback(() =>
     Promise.all([
@@ -49,6 +50,7 @@ export default function AdminContacts() {
     try {
       await api.put(`/api/contacts/${selected.id}/notes`, { notes });
       setError(null);
+      setNotesSaved(true);
     } catch (e) {
       setError(err((e as Error).message));
     }
@@ -68,7 +70,7 @@ export default function AdminContacts() {
               <Row key={`${s.account_contact_id}-${s.existing_contact_id}`} style={{ justifyContent: 'space-between', gap: 8 }}>
                 <Text style={[styles.text, { flex: 1 }]}>
                   {a?.full_name} ({a?.email}) ↔ {e?.full_name} ({e?.phone ?? e?.email}) ·{' '}
-                  {s.match === 'email' ? '@ email' : '☎ phone'}
+                  {s.match === 'email' ? t('linkByEmail') : t('linkByPhone')}
                 </Text>
                 <Button
                   kind="secondary"
@@ -105,7 +107,8 @@ export default function AdminContacts() {
           <Card style={{ flex: 1, minWidth: 300 }}>
             <Title>{selected.full_name}</Title>
             <Muted>{[selected.phone, selected.email].filter(Boolean).join(' · ')}</Muted>
-            <Field label={t('notes')} value={notes} onChangeText={setNotes} multiline />
+            <Field label={t('privateNotes')} value={notes} onChangeText={(v) => (setNotes(v), setNotesSaved(false))} multiline />
+            {notesSaved ? <Notice tone="success">{t('saved')}</Notice> : null}
             <Button title={t('save')} onPress={saveNotes} />
             {!selected.user_id ? (
               <Button

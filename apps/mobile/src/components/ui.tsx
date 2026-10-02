@@ -115,7 +115,7 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
   return (
     <View style={styles.field}>
       <Label>{label}</Label>
-      <TextInput placeholderTextColor={colors.muted} style={styles.input} {...props} />
+      <TextInput placeholderTextColor={colors.muted} style={styles.input} accessibilityLabel={label} {...props} />
     </View>
   );
 }
@@ -124,7 +124,7 @@ export function Toggle({ label, value, onChange }: { label: string; value: boole
   return (
     <Row style={{ justifyContent: 'space-between', marginVertical: 6 }}>
       <Text style={[styles.text, { flex: 1 }]}>{label}</Text>
-      <Switch value={value} onValueChange={onChange} />
+      <Switch value={value} onValueChange={onChange} accessibilityLabel={label} />
     </Row>
   );
 }
@@ -154,6 +154,8 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
       {options.map((o) => (
         <Pressable
           key={o.value}
+          accessibilityRole="button"
+          accessibilityState={{ selected: o.value === value }}
           onPress={() => onChange(o.value)}
           style={[styles.segment, o.value === value && { backgroundColor: colors.primary }]}
         >

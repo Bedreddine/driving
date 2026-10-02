@@ -57,7 +57,7 @@ export default function AdminLayout() {
             </Link>
           );
         })}
-        <Text onPress={() => void signOut()} style={{ color: colors.accent, paddingVertical: 8, paddingHorizontal: 10 }}>
+        <Text accessibilityRole="button" onPress={() => void signOut()} style={{ color: colors.accent, paddingVertical: 8, paddingHorizontal: 10 }}>
           {t('signOut')}
         </Text>
       </View>

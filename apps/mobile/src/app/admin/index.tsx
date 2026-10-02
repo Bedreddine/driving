@@ -80,7 +80,7 @@ export default function AdminRides() {
           <Text style={[cell, { flex: 1, fontWeight: '700' }]}> </Text>
         </Row>
         {shown.map((r: Ride) => (
-          <Pressable key={r.id} onPress={() => router.push({ pathname: '/driver/ride/[id]', params: { id: r.id } })}>
+          <Pressable key={r.id} onPress={() => router.push({ pathname: '/admin/ride/[id]', params: { id: r.id } })}>
             {({ pressed }) => (
               <Row style={[tableRow, pressed ? { backgroundColor: colors.bg } : null]}>
                 <Text style={[cell, { flex: 1.3 }]}>{formatDateTime(r.pickup_at, lang)}</Text>

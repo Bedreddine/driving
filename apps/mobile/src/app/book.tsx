@@ -10,9 +10,9 @@ import { useAuth } from '@/lib/auth';
 import { formatDateTime, formatKm, formatMinutes, formatPrice } from '@/lib/format';
 import { rememberGuestRide, savedGuestRides, type SavedGuestRide } from '@/lib/guestRides';
 import { type BusinessInfo, getBusiness, getPublicDriver, guestBook, guestQuote } from '@/lib/publicApi';
+import { useDocumentTitle } from '@/lib/useDocumentTitle';
+import { isEmail, isPhone } from '@/lib/validate';
 
-const PHONE = /^\+?[0-9 .\-()]{6,30}$/;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function defaultPickup() {
   const d = new Date(Date.now() + 4 * 3600_000); // respects the minimum notice
@@ -48,6 +48,8 @@ export default function PublicBooking() {
     savedGuestRides().filter((r) => new Date(r.pickup_at).getTime() > Date.now() - 6 * 3600_000),
   );
 
+  useDocumentTitle(business ? `${business.name} – ${t('bookYourChauffeur')}` : null);
+
   useEffect(() => {
     void getBusiness().then(setBusiness).catch(() => undefined);
     void getPublicDriver().then(setDriver).catch(() => undefined);
@@ -71,7 +73,9 @@ export default function PublicBooking() {
     [pickup, dropoff, when, passengers, luggage, driver, meetGreet, travelRef, notes],
   );
   const client = { full_name: name.trim(), phone: phone.trim(), email: email.trim(), language: lang };
-  const clientOk = client.full_name.length > 0 && PHONE.test(client.phone) && EMAIL.test(client.email);
+  const phoneOk = isPhone(client.phone);
+  const emailOk = isEmail(client.email);
+  const clientOk = client.full_name.length > 0 && phoneOk && emailOk;
 
   // A price belongs to the exact trip it was computed for; any change hides it.
   const key = JSON.stringify(ride);
@@ -143,7 +147,9 @@ export default function PublicBooking() {
         <PremiumCard title={t('yourDetails')}>
           <Field label={t('fullName')} value={name} onChangeText={setName} autoComplete="name" />
           <Field label={t('phone')} value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" placeholder="+33 6 12 34 56 78" />
+          {phone.trim() && !phoneOk ? <ErrorText>{err('BAD_PHONE')}</ErrorText> : null}
           <Field label={t('email')} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+          {email.trim() && !emailOk ? <ErrorText>{err('BAD_EMAIL')}</ErrorText> : null}
         </PremiumCard>
 
         {quote ? (
@@ -158,7 +164,7 @@ export default function PublicBooking() {
             </Row>
             {quote.distance_m ? (
               <Text style={{ color: '#8A8A90' }}>
-                {formatKm(quote.distance_m)} · {formatMinutes(quote.duration_s ?? 0)}
+                {formatKm(quote.distance_m, lang)} · {formatMinutes(quote.duration_s ?? 0)}
               </Text>
             ) : null}
             {quote.route_estimated ? <Text style={{ color: '#8A8A90' }}>{t('roughRoute')}</Text> : null}
@@ -174,7 +180,10 @@ export default function PublicBooking() {
         {!quote ? (
           <Button kind="gold" title={t('getPrice')} onPress={getPrice} loading={busy === 'quote'} disabled={!ride} />
         ) : (
-          <Button kind="gold" title={t('requestMyRide')} onPress={send} loading={busy === 'book'} disabled={!clientOk} />
+          <>
+            <Button kind="gold" title={t('requestMyRide')} onPress={send} loading={busy === 'book'} disabled={!clientOk} />
+            {!clientOk ? <Text style={{ color: colors.gold, textAlign: 'center' }}>{t('fillDetailsHint')}</Text> : null}
+          </>
         )}
         <Text style={[styles.muted, { color: '#8A8A90', textAlign: 'center', fontSize: 12 }]}>{t('privacyNote')}</Text>
       </PremiumShell>

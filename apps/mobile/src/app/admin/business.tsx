@@ -58,7 +58,8 @@ export default function AdminBusiness() {
     const png = await QRCode.toDataURL(bookingUrl, { ...QR_OPTIONS, width: 1200 });
     const a = document.createElement('a');
     a.href = png;
-    a.download = `qr-${(saved?.name ?? 'booking').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`;
+    const slug = (saved?.name ?? 'booking').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    a.download = `qr-${slug.replace(/^-|-$/g, '')}.png`;
     a.click();
   };
 

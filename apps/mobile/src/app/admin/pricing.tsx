@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { AddressInput } from '@/components/AddressInput';
-import { Button, Card, ErrorText, Field, Label, Muted, Notice, Row, Segmented, styles, Title } from '@/components/ui';
+import { Button, Card, Field, Label, Muted, Notice, Row, Segmented, styles, Title, Toggle } from '@/components/ui';
 import type { Place } from '@/lib/api';
 import { getDriver } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -62,6 +62,7 @@ export default function AdminPricing() {
   const [fxFrom, setFxFrom] = useState<string | null>(null);
   const [fxTo, setFxTo] = useState<string | null>(null);
   const [fxPrice, setFxPrice] = useState('');
+  const [fxBoth, setFxBoth] = useState(true);
   const [scName, setScName] = useState('');
   const [scDays, setScDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [scStart, setScStart] = useState('20:00');
@@ -122,156 +123,223 @@ export default function AdminPricing() {
   if (!settings) return <Muted style={{ padding: 20 }}>…</Muted>;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, gap: 16, maxWidth: 900 }}>
-      <Title>{t('pricing')}</Title>
-      <ErrorText>{error}</ErrorText>
+    <View style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 96, gap: 16, maxWidth: 900 }}>
+        <Title>{t('pricing')}</Title>
 
-      <Card>
-        <Label>{t('licence')}</Label>
-        <Segmented<'vtc' | 'taxi'>
-          options={[
-            { value: 'vtc', label: 'VTC' },
-            { value: 'taxi', label: 'Taxi' },
-          ]}
-          value={settings.licence}
-          onChange={(v) => (setSettings({ ...settings, licence: v }), setSaved(false))}
-        />
-        <Muted>{t('licenceHelp')}</Muted>
-        <Row style={{ gap: 12, flexWrap: 'wrap' }}>
-          {moneyFields.map((k) => (
-            <View key={k} style={{ minWidth: 160, flex: 1 }}>
-              <Field
-                label={t(k === 'base_fare' ? 'baseFare' : k === 'per_km' ? 'perKm' : k === 'per_minute' ? 'perMinute' : 'minimumFare')}
-                value={form[k]}
-                onChangeText={(v) => (setForm({ ...form, [k]: v }), setSaved(false))}
-                keyboardType="decimal-pad"
+        <Card>
+          <Label>{t('licence')}</Label>
+          <Segmented<'vtc' | 'taxi'>
+            options={[
+              { value: 'vtc', label: 'VTC' },
+              { value: 'taxi', label: 'Taxi' },
+            ]}
+            value={settings.licence}
+            onChange={(v) => (setSettings({ ...settings, licence: v }), setSaved(false))}
+          />
+          <Muted>{t('licenceHelp')}</Muted>
+          <Row style={{ gap: 12, flexWrap: 'wrap' }}>
+            {moneyFields.map((k) => (
+              <View key={k} style={{ minWidth: 160, flex: 1 }}>
+                <Field
+                  label={t(
+                    k === 'base_fare'
+                      ? 'baseFare'
+                      : k === 'per_km'
+                        ? 'perKm'
+                        : k === 'per_minute'
+                          ? 'perMinute'
+                          : 'minimumFare',
+                  )}
+                  value={form[k]}
+                  onChangeText={(v) => (setForm({ ...form, [k]: v }), setSaved(false))}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+            ))}
+          </Row>
+          <Row style={{ gap: 12, flexWrap: 'wrap' }}>
+            {minuteFields.map((k) => (
+              <View key={k} style={{ minWidth: 200, flex: 1 }}>
+                <Field
+                  label={t(minuteLabels[k])}
+                  value={form[k]}
+                  onChangeText={(v) => (setForm({ ...form, [k]: v }), setSaved(false))}
+                  keyboardType="number-pad"
+                />
+              </View>
+            ))}
+          </Row>
+          {saved ? <Notice tone="success">{t('saved')}</Notice> : null}
+          <Button title={t('save')} onPress={saveSettings} />
+        </Card>
+
+        <Card>
+          <Label>{t('surcharges')}</Label>
+          <Muted>{t('surchargesHelp')}</Muted>
+          {surcharges.map((s) => (
+            <Row key={s.id} style={{ justifyContent: 'space-between' }}>
+              <Text style={styles.text}>
+                {s.name}: +{s.percent}% · {s.days.map((d) => dayNames(lang)[d]).join(' ')} · {s.start_time.slice(0, 5)}{' '}
+                → {s.end_time.slice(0, 5)}
+              </Text>
+              <Button
+                kind="danger"
+                title={t('delete')}
+                onPress={() => void mutate(() => api.del(`/api/admin/surcharges/${s.id}`))}
               />
-            </View>
+            </Row>
           ))}
-        </Row>
-        <Row style={{ gap: 12, flexWrap: 'wrap' }}>
-          {minuteFields.map((k) => (
-            <View key={k} style={{ minWidth: 200, flex: 1 }}>
-              <Field label={t(minuteLabels[k])} value={form[k]} onChangeText={(v) => (setForm({ ...form, [k]: v }), setSaved(false))} keyboardType="number-pad" />
+          <Row style={{ gap: 8, flexWrap: 'wrap' }}>
+            <View style={{ minWidth: 140, flex: 1 }}>
+              <Field label={t('name')} value={scName} onChangeText={setScName} />
             </View>
+            <View style={{ width: 100 }}>
+              <Field label={t('start')} value={scStart} onChangeText={setScStart} />
+            </View>
+            <View style={{ width: 100 }}>
+              <Field label={t('end')} value={scEnd} onChangeText={setScEnd} />
+            </View>
+            <View style={{ width: 80 }}>
+              <Field label="%" value={scPercent} onChangeText={setScPercent} keyboardType="decimal-pad" />
+            </View>
+          </Row>
+          <DayPicker value={scDays} onChange={setScDays} />
+          <Button
+            kind="secondary"
+            title={`+ ${t('surcharges')}`}
+            onPress={async () => {
+              const pct = parsePrice(scPercent);
+              if (
+                !scName.trim() ||
+                pct === null ||
+                !/^\d\d:\d\d$/.test(scStart) ||
+                !/^\d\d:\d\d$/.test(scEnd) ||
+                !scDays.length
+              ) {
+                return setError(err('BAD_INPUT'));
+              }
+              const body = { name: scName.trim(), days: scDays, start_time: scStart, end_time: scEnd, percent: pct };
+              if (await mutate(() => api.post(`/api/admin/pricing/${settings.driver_id}/surcharges`, body)))
+                setScName('');
+            }}
+          />
+        </Card>
+
+        <Card>
+          <Label>{t('zones')}</Label>
+          <Muted>{t('zonesHelp')}</Muted>
+          {zones.map((z) => (
+            <Row key={z.id} style={{ justifyContent: 'space-between' }}>
+              <Text style={styles.text}>
+                {z.name} · {t(`zone_${z.kind}`)} · {z.radius_m} m
+              </Text>
+              <Button
+                kind="danger"
+                title={t('delete')}
+                onPress={() => void mutate(() => api.del(`/api/admin/zones/${z.id}`))}
+              />
+            </Row>
           ))}
-        </Row>
-        {saved ? <Notice tone="success">{t('saved')}</Notice> : null}
-        <Button title={t('save')} onPress={saveSettings} />
-      </Card>
-
-      <Card>
-        <Label>{t('surcharges')}</Label>
-        <Muted>{t('surchargesHelp')}</Muted>
-        {surcharges.map((s) => (
-          <Row key={s.id} style={{ justifyContent: 'space-between' }}>
-            <Text style={styles.text}>
-              {s.name}: +{s.percent}% · {s.days.map((d) => dayNames(lang)[d]).join(' ')} ·{' '}
-              {s.start_time.slice(0, 5)} → {s.end_time.slice(0, 5)}
-            </Text>
-            <Button kind="danger" title={t('delete')} onPress={() => void mutate(() => api.del(`/api/admin/surcharges/${s.id}`))} />
+          <AddressInput
+            label={t('center')}
+            value={zonePlace}
+            onChange={(p) => (setZonePlace(p), p && !zoneName && setZoneName(p.address.split(',')[0]))}
+          />
+          <Row style={{ gap: 8, flexWrap: 'wrap' }}>
+            <View style={{ minWidth: 160, flex: 1 }}>
+              <Field label={t('name')} value={zoneName} onChangeText={setZoneName} />
+            </View>
+            <View style={{ width: 120 }}>
+              <Field label={t('radius')} value={zoneRadius} onChangeText={setZoneRadius} keyboardType="number-pad" />
+            </View>
           </Row>
-        ))}
-        <Row style={{ gap: 8, flexWrap: 'wrap' }}>
-          <View style={{ minWidth: 140, flex: 1 }}>
-            <Field label={t('name')} value={scName} onChangeText={setScName} />
-          </View>
-          <View style={{ width: 100 }}>
-            <Field label={t('start')} value={scStart} onChangeText={setScStart} />
-          </View>
-          <View style={{ width: 100 }}>
-            <Field label={t('end')} value={scEnd} onChangeText={setScEnd} />
-          </View>
-          <View style={{ width: 80 }}>
-            <Field label="%" value={scPercent} onChangeText={setScPercent} keyboardType="decimal-pad" />
-          </View>
-        </Row>
-        <DayPicker value={scDays} onChange={setScDays} />
-        <Button
-          kind="secondary"
-          title={`+ ${t('surcharges')}`}
-          onPress={async () => {
-            const pct = parsePrice(scPercent);
-            if (!scName.trim() || pct === null || !/^\d\d:\d\d$/.test(scStart) || !/^\d\d:\d\d$/.test(scEnd) || !scDays.length) {
-              return setError(err('BAD_INPUT'));
-            }
-            const body = { name: scName.trim(), days: scDays, start_time: scStart, end_time: scEnd, percent: pct };
-            if (await mutate(() => api.post(`/api/admin/pricing/${settings.driver_id}/surcharges`, body))) setScName('');
-          }}
-        />
-      </Card>
+          <Segmented<Zone['kind']>
+            options={[
+              { value: 'other', label: t('zone_other') },
+              { value: 'airport', label: t('zone_airport') },
+              { value: 'station', label: t('zone_station') },
+            ]}
+            value={zoneKind}
+            onChange={setZoneKind}
+          />
+          <Button
+            kind="secondary"
+            title={`+ ${t('zones')}`}
+            onPress={async () => {
+              const radius = Number(zoneRadius);
+              if (!zonePlace || !zoneName.trim() || !Number.isInteger(radius) || radius <= 0)
+                return setError(err('BAD_INPUT'));
+              const body = {
+                name: zoneName.trim(),
+                kind: zoneKind,
+                center_lat: zonePlace.lat,
+                center_lng: zonePlace.lng,
+                radius_m: radius,
+              };
+              if (await mutate(() => api.post('/api/admin/zones', body))) {
+                setZonePlace(null);
+                setZoneName('');
+              }
+            }}
+          />
+        </Card>
 
-      <Card>
-        <Label>{t('zones')}</Label>
-        <Muted>{t('zonesHelp')}</Muted>
-        {zones.map((z) => (
-          <Row key={z.id} style={{ justifyContent: 'space-between' }}>
-            <Text style={styles.text}>
-              {z.name} · {t(`zone_${z.kind}`)} · {z.radius_m} m
+        <Card>
+          <Label>{t('fixedPrices')}</Label>
+          {fixed.map((f) => (
+            <Row key={f.id} style={{ justifyContent: 'space-between' }}>
+              <Text style={styles.text}>
+                {zoneName_(f.from_zone)} {f.both_directions ? '↔' : '→'} {zoneName_(f.to_zone)}:{' '}
+                {formatPrice(f.price, settings.currency, lang)}
+              </Text>
+              <Button
+                kind="danger"
+                title={t('delete')}
+                onPress={() => void mutate(() => api.del(`/api/admin/fixed-prices/${f.id}`))}
+              />
+            </Row>
+          ))}
+          <Label>{t('from')}</Label>
+          <Segmented<string>
+            options={zones.map((z) => ({ value: z.id, label: z.name }))}
+            value={fxFrom ?? ''}
+            onChange={setFxFrom}
+          />
+          <Label>{t('to')}</Label>
+          <Segmented<string>
+            options={zones.map((z) => ({ value: z.id, label: z.name }))}
+            value={fxTo ?? ''}
+            onChange={setFxTo}
+          />
+          <Field label={t('price')} value={fxPrice} onChangeText={setFxPrice} keyboardType="decimal-pad" />
+          <Toggle label={t('bothDirections')} value={fxBoth} onChange={setFxBoth} />
+          <Button
+            kind="secondary"
+            title={`+ ${t('fixedPrices')}`}
+            onPress={async () => {
+              const p = parsePrice(fxPrice);
+              if (!fxFrom || !fxTo || p === null) return setError(err('BAD_INPUT'));
+              const body = { from_zone: fxFrom, to_zone: fxTo, price: p, both_directions: fxBoth };
+              if (await mutate(() => api.post(`/api/admin/pricing/${settings.driver_id}/fixed-prices`, body)))
+                setFxPrice('');
+            }}
+          />
+        </Card>
+      </ScrollView>
+      {error ? (
+        // Pinned to the bottom of the screen: visible whichever card's button was pressed.
+        <View style={{ position: 'absolute', left: 20, right: 20, bottom: 20, maxWidth: 860 }}>
+          <Notice tone="warning">
+            {error}{' '}
+            <Text onPress={() => setError(null)} style={{ fontWeight: '700' }}>
+              {' '}
+              ✕
             </Text>
-            <Button kind="danger" title={t('delete')} onPress={() => void mutate(() => api.del(`/api/admin/zones/${z.id}`))} />
-          </Row>
-        ))}
-        <AddressInput label={t('center')} value={zonePlace} onChange={(p) => (setZonePlace(p), p && !zoneName && setZoneName(p.address.split(',')[0]))} />
-        <Row style={{ gap: 8, flexWrap: 'wrap' }}>
-          <View style={{ minWidth: 160, flex: 1 }}>
-            <Field label={t('name')} value={zoneName} onChangeText={setZoneName} />
-          </View>
-          <View style={{ width: 120 }}>
-            <Field label={t('radius')} value={zoneRadius} onChangeText={setZoneRadius} keyboardType="number-pad" />
-          </View>
-        </Row>
-        <Segmented<Zone['kind']>
-          options={[
-            { value: 'other', label: t('zone_other') },
-            { value: 'airport', label: t('zone_airport') },
-            { value: 'station', label: t('zone_station') },
-          ]}
-          value={zoneKind}
-          onChange={setZoneKind}
-        />
-        <Button
-          kind="secondary"
-          title={`+ ${t('zones')}`}
-          onPress={async () => {
-            const radius = Number(zoneRadius);
-            if (!zonePlace || !zoneName.trim() || !Number.isInteger(radius) || radius <= 0) return setError(err('BAD_INPUT'));
-            const body = { name: zoneName.trim(), kind: zoneKind, center_lat: zonePlace.lat, center_lng: zonePlace.lng, radius_m: radius };
-            if (await mutate(() => api.post('/api/admin/zones', body))) {
-              setZonePlace(null);
-              setZoneName('');
-            }
-          }}
-        />
-      </Card>
-
-      <Card>
-        <Label>{t('fixedPrices')}</Label>
-        {fixed.map((f) => (
-          <Row key={f.id} style={{ justifyContent: 'space-between' }}>
-            <Text style={styles.text}>
-              {zoneName_(f.from_zone)} {f.both_directions ? '↔' : '→'} {zoneName_(f.to_zone)}: {formatPrice(f.price, settings.currency, lang)}
-            </Text>
-            <Button kind="danger" title={t('delete')} onPress={() => void mutate(() => api.del(`/api/admin/fixed-prices/${f.id}`))} />
-          </Row>
-        ))}
-        <Label>{t('from')}</Label>
-        <Segmented<string> options={zones.map((z) => ({ value: z.id, label: z.name }))} value={fxFrom ?? ''} onChange={setFxFrom} />
-        <Label>{t('to')}</Label>
-        <Segmented<string> options={zones.map((z) => ({ value: z.id, label: z.name }))} value={fxTo ?? ''} onChange={setFxTo} />
-        <Field label={t('price')} value={fxPrice} onChangeText={setFxPrice} keyboardType="decimal-pad" />
-        <Button
-          kind="secondary"
-          title={`+ ${t('fixedPrices')}`}
-          onPress={async () => {
-            const p = parsePrice(fxPrice);
-            if (!fxFrom || !fxTo || p === null) return setError(err('BAD_INPUT'));
-            const body = { from_zone: fxFrom, to_zone: fxTo, price: p };
-            if (await mutate(() => api.post(`/api/admin/pricing/${settings.driver_id}/fixed-prices`, body))) setFxPrice('');
-          }}
-        />
-      </Card>
-    </ScrollView>
+          </Notice>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -280,7 +348,8 @@ function DayPicker({ value, onChange }: { value: number[]; onChange: (v: number[
   const names = dayNames(lang);
   return (
     <Row style={{ gap: 6, flexWrap: 'wrap' }}>
-      {names.map((n, d) => {
+      {[1, 2, 3, 4, 5, 6, 0].map((d) => {
+        const n = names[d];
         const on = value.includes(d);
         return (
           <Button

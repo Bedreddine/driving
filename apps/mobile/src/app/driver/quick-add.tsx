@@ -6,6 +6,7 @@ import { Button, Card, ErrorText, Field, Label, Row, Screen, Segmented, styles, 
 import type { BookingInput } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { parsePrice } from '@/lib/format';
+import { isPhone } from '@/lib/validate';
 import { api } from '@/lib/http';
 
 type Contact = { id: string; full_name: string; phone: string | null };
@@ -71,8 +72,9 @@ export default function QuickAdd() {
         <Card>
           <Field label={t('fullName')} value={newName} onChangeText={setNewName} />
           <Field label={t('phone')} value={newPhone} onChangeText={setNewPhone} keyboardType="phone-pad" />
+          {newPhone.trim() && !isPhone(newPhone) ? <ErrorText>{err('BAD_PHONE')}</ErrorText> : null}
           <Toggle label={t('noticeGiven')} value={notice} onChange={setNotice} />
-          <Button title={t('save')} onPress={createContact} disabled={!newName.trim()} />
+          <Button title={t('save')} onPress={createContact} disabled={!newName.trim() || (!!newPhone.trim() && !isPhone(newPhone))} />
           <Button kind="secondary" title={t('back')} onPress={() => setCreating(false)} />
         </Card>
       ) : (

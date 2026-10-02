@@ -43,7 +43,7 @@ export function DateTimeField({ label, value, onChange }: { label: string; value
       <Label>
         {label} ({t('parisTime')})
       </Label>
-      <Pressable style={styles.input} onPress={() => (Platform.OS === 'android' ? openAndroid() : setIosOpen((o) => !o))}>
+      <Pressable accessibilityRole="button" accessibilityLabel={label} style={styles.input} onPress={() => (Platform.OS === 'android' ? openAndroid() : setIosOpen((o) => !o))}>
         <Text style={styles.text}>{formatDateTime(value, lang)}</Text>
       </Pressable>
       {Platform.OS === 'ios' && iosOpen ? (

@@ -51,6 +51,7 @@ export function AddressInput({ label, value, onChange }: { label: string; value:
     <View style={styles.field}>
       <Label>{label}</Label>
       <TextInput
+        accessibilityLabel={label}
         style={styles.input}
         value={text}
         placeholder={t('searchAddress')}

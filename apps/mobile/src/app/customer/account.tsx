@@ -5,6 +5,7 @@ import { deleteMyAccount } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { confirmAsk } from '@/lib/confirm';
 import type { Lang } from '@/lib/i18n';
+import { isPhone } from '@/lib/validate';
 import { forgetSession, api } from '@/lib/http';
 
 export default function Account() {
@@ -24,6 +25,7 @@ function AccountForm() {
 
   const save = async () => {
     if (!profile) return;
+    if (phone.trim() && !isPhone(phone)) return setError(err('BAD_PHONE'));
     try {
       await api.patch('/api/me', { full_name: name.trim(), phone: phone.trim() });
     } catch (e) {

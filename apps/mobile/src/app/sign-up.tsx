@@ -1,4 +1,4 @@
-import { Link, useRouter } from 'expo-router';
+import { Link, Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Text } from 'react-native';
 import { Button, ErrorText, Field, Screen, styles, Title } from '@/components/ui';
@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { signUp } from '@/lib/http';
 
 export default function SignUp() {
-  const { t, err, lang } = useAuth();
+  const { t, err, lang, signedIn } = useAuth();
   const router = useRouter();
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -14,6 +14,8 @@ export default function SignUp() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (signedIn) return <Redirect href="/" />;
 
   const submit = async () => {
     setBusy(true);

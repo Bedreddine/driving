@@ -5,6 +5,7 @@ import { PremiumCard, PremiumShell } from '@/components/PremiumShell';
 import { StatusBadge } from '@/components/RideCard';
 import { Button, colors, ErrorText, Label, Loading, Muted, Row, serif, styles } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
+import { useDocumentTitle } from '@/lib/useDocumentTitle';
 import { confirmAsk } from '@/lib/confirm';
 import { formatDateTime, formatKm, formatMinutes, formatPrice } from '@/lib/format';
 import type { TextKey } from '@/lib/i18n';
@@ -29,6 +30,8 @@ export default function GuestRide() {
     [token],
   );
 
+  useDocumentTitle(business ? `${business.name} – ${t('yourRide')}` : null);
+
   useEffect(() => {
     void getBusiness().then(setBusiness).catch(() => undefined);
     void load();
@@ -51,7 +54,16 @@ export default function GuestRide() {
   };
 
   const open = ride && ['requested', 'price_proposed', 'accepted'].includes(ride.status);
-  const price = ride ? ride.final_price ?? ride.agreed_price ?? ride.proposed_price ?? ride.estimated_price : null;
+  // Which price to show, and its name. A refused proposal no longer counts: back to the estimate.
+  const priced: { amount: number | null; label: TextKey } | null = !ride
+    ? null
+    : ride.final_price !== null
+      ? { amount: ride.final_price, label: 'finalPrice' }
+      : ride.agreed_price !== null
+        ? { amount: ride.agreed_price, label: 'agreedPrice' }
+        : ride.status === 'price_proposed'
+          ? { amount: ride.proposed_price, label: 'proposedPrice' }
+          : { amount: ride.estimated_price, label: ride.is_fixed_price ? 'fixedPrice' : 'estimate' };
 
   return (
     <>
@@ -79,7 +91,7 @@ export default function GuestRide() {
               <Label>{t('to')}</Label>
               <Text style={styles.text}>{ride.dropoff_address}</Text>
               <Muted>
-                {formatKm(ride.distance_m)} · {formatMinutes(ride.duration_s)} · {ride.passengers} 👤 · {ride.luggage} 🧳
+                {formatKm(ride.distance_m, lang)} · {formatMinutes(ride.duration_s)} · {ride.passengers} 👤 · {ride.luggage} 🧳
                 {ride.travel_ref ? ` · ${ride.travel_ref}` : ''}
                 {ride.meet_greet ? ` · ${t('meetGreet')}` : ''}
               </Muted>
@@ -88,19 +100,9 @@ export default function GuestRide() {
 
             <View style={{ borderWidth: 1, borderColor: colors.gold, borderRadius: 14, padding: 18, gap: 4 }}>
               <Row style={{ justifyContent: 'space-between' }}>
-                <Text style={{ color: '#E8E4DA', fontSize: 16 }}>
-                  {ride.status === 'price_proposed'
-                    ? t('proposedPrice')
-                    : ride.final_price !== null
-                      ? t('finalPrice')
-                      : ride.agreed_price !== null
-                        ? t('agreedPrice')
-                        : ride.is_fixed_price
-                          ? t('fixedPrice')
-                          : t('estimate')}
-                </Text>
+                <Text style={{ color: '#E8E4DA', fontSize: 16 }}>{priced ? t(priced.label) : ''}</Text>
                 <Text style={{ fontFamily: serif, color: colors.gold, fontSize: 30 }}>
-                  {formatPrice(price, ride.currency, lang)}
+                  {formatPrice(priced?.amount, ride.currency, lang)}
                 </Text>
               </Row>
               {ride.status === 'price_proposed' && ride.answer_deadline ? (
@@ -121,7 +123,7 @@ export default function GuestRide() {
                 title={t('cancelRide')}
                 loading={busy === 'cancel'}
                 onPress={async () => {
-                  if (await confirmAsk(`${t('cancelRide')} ?`, t('confirm'), t('back'))) {
+                  if (await confirmAsk(t('cancelRideConfirm'), t('confirm'), t('back'))) {
                     void act('cancel', () => cancelAsGuest(token));
                   }
                 }}

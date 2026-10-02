@@ -36,7 +36,8 @@ export function formatPrice(amount: number | null | undefined, currency = 'EUR',
   return new Intl.NumberFormat(locale(lang), { style: 'currency', currency }).format(Number(amount));
 }
 
-export const formatKm = (m: number) => `${(m / 1000).toFixed(1)} km`;
+export const formatKm = (m: number, lang: Lang = 'fr') =>
+  `${new Intl.NumberFormat(locale(lang), { maximumFractionDigits: 1, minimumFractionDigits: 1 }).format(m / 1000)} km`;
 export const formatMinutes = (s: number) => `${Math.round(s / 60)} min`;
 
 /** YYYY-MM-DD of an instant in the business timezone, used to group rides by day. */

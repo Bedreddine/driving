@@ -17,7 +17,13 @@ export default function DriverHome() {
   const { rides, error } = useRides({ from: since, statuses: ['requested', 'price_proposed', 'accepted'] });
   const [conflicts, setConflicts] = useState<Record<string, string>>({});
 
-  const loadConflicts = useCallback(() => void requestConflicts().then(setConflicts), []);
+  const loadConflicts = useCallback(
+    () =>
+      void requestConflicts()
+        .then(setConflicts)
+        .catch(() => setConflicts({})),
+    [],
+  );
   useEffect(loadConflicts, [loadConflicts, rides]);
 
   const open = (r: Ride) => router.push({ pathname: '/driver/ride/[id]', params: { id: r.id } });

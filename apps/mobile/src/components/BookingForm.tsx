@@ -134,14 +134,15 @@ export function BookingForm({ mode, from, extra, extraFields, canSubmit = true, 
           </Row>
           {quote.distance_m ? (
             <Text style={styles.muted}>
-              {formatKm(quote.distance_m)} · {formatMinutes(quote.duration_s ?? 0)}
+              {formatKm(quote.distance_m, lang)} · {formatMinutes(quote.duration_s ?? 0)}
             </Text>
           ) : null}
           {quote.route_estimated ? <Text style={styles.muted}>{t('roughRoute')}</Text> : null}
         </Card>
       ) : null}
 
-      <ErrorText>{error}</ErrorText>
+      {/* On short notice the card below says it all, with call buttons: no second message. */}
+      {!(tooShort && phoneDigits) ? <ErrorText>{error}</ErrorText> : null}
       {tooShort && phoneDigits ? (
         <Card>
           <Text style={styles.text}>{t('shortNotice')}</Text>

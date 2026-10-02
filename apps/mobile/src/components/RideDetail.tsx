@@ -8,6 +8,7 @@ import { confirmAsk } from '@/lib/confirm';
 import { formatDateTime, formatKm, formatMinutes, formatPrice, parsePrice } from '@/lib/format';
 import { type BusinessInfo, getBusiness } from '@/lib/publicApi';
 import { useNow } from '@/lib/useNow';
+import { phoneDigits } from '@/lib/validate';
 import { whatsappMessage, whatsappUrl } from '@/lib/whatsapp';
 import { StatusBadge } from './RideCard';
 import { Button, Card, colors, ErrorText, Field, Label, Muted, Row, styles } from './ui';
@@ -88,7 +89,7 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
         <Label>{t('to')}</Label>
         <Text style={styles.text}>{ride.dropoff_address}</Text>
         <Muted>
-          {formatKm(ride.distance_m)} · {formatMinutes(ride.duration_s)} · {ride.passengers} 👤 · {ride.luggage} 🧳 ·{' '}
+          {formatKm(ride.distance_m, lang)} · {formatMinutes(ride.duration_s)} · {ride.passengers} 👤 · {ride.luggage} 🧳 ·{' '}
           {t(ride.vehicle)}
           {ride.meet_greet ? ` · ${t('meetGreet')}` : ''}
         </Muted>
@@ -119,7 +120,9 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
             <Text style={[styles.text, { fontWeight: '700' }]}>{formatPrice(ride.final_price, ride.currency, lang)}</Text>
           </Row>
         ) : null}
-        {ride.answer_deadline ? <Muted>{`${t('answerBefore')} ${formatDateTime(ride.answer_deadline, lang)}`}</Muted> : null}
+        {ride.answer_deadline && (as === 'driver' || ride.status === 'price_proposed') ? (
+          <Muted>{`${t('answerBefore')} ${formatDateTime(ride.answer_deadline, lang)}`}</Muted>
+        ) : null}
         {ride.cancel_reason ? <Muted>{`${t('reason')}: ${ride.cancel_reason}`}</Muted> : null}
       </Card>
 
@@ -132,7 +135,7 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
             {ride.contact.phone ? (
               <Button kind="secondary" title={t('call')} onPress={() => void Linking.openURL(`tel:${ride.contact!.phone}`)} />
             ) : null}
-            {ride.contact.phone ? (
+            {phoneDigits(ride.contact.phone) ? (
               <Button
                 kind="secondary"
                 title={t('sendWhatsApp')}

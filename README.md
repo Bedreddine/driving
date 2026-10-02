@@ -60,7 +60,7 @@ Test accounts (created on an empty database by the `dev` profile, used by `npm r
 
 ```bash
 npm test               # everything below
-npm run test:backend   # 60 tests: unit + integration on a real PostgreSQL (Testcontainers) + module boundaries
+npm run test:backend   # 67 tests: unit + integration on a real PostgreSQL (Testcontainers) + module boundaries
 npm run test:app       # 17 app tests (Paris time, prices, texts)
 cd apps/mobile && npx tsc --noEmit && npx expo lint
 ```
@@ -136,6 +136,8 @@ Expiry of unanswered requests (every minute), reminders for rides left open, pho
 - **Password reset and email verification** for accounts: the email sending exists now, the screens are not built yet.
 - **SMS provider:** the sending is pluggable (`CustomerChannels.SmsSender`); choose a provider (paid per message) and wire it.
 - **Website address and domain:** decided at deployment; the QR code shows a warning until it is set.
+- **Phone app release:** run `eas init` (your Expo account) for push notifications, add the Android Firebase file, replace the placeholder icon/splash and the `com.example.taxiapp` bundle ids, and set the real API address in `apps/mobile/eas.json`.
+- **Email links opening the app** (universal links): needs the final domain.
 - **Card payments** (phase 2): card payments always cost a fee per transaction, whoever the provider.
 - **Second driver:** the database supports it; bookings still go to the first active driver.
 - Travel times are typical road times from OpenStreetMap, not live traffic.
