@@ -242,6 +242,17 @@ The user asked for Gradle + Spring Boot + Java 21 as a microservice monorepo, th
 - Contact link suggestions no longer distinguish verified emails: email verification and password reset need an SMTP sender and are not built yet.
 - Tests: 46 backend tests on a real PostgreSQL (Testcontainers), including module boundaries and WebSocket live updates.
 
+### New direction: QR business card for premium clients (2026-10-02)
+
+The driver hands out a business card with a QR code; premium clients scan it and book. Decisions with the user:
+
+- **QR target:** the booking website (`/book`), no install; a "Get the app" link for regulars.
+- **Booking:** both guest (no account: name, phone, email) and account. A guest follows the ride through a private link `/b/<token>` (192-bit random token) to accept / refuse a price or cancel. A returning guest with the same email and phone reuses one customer record.
+- **Client notifications:** email (any SMTP; outbox with retries), SMS (pluggable, off until a paid provider is chosen), and a ready-written WhatsApp message the driver sends in one tap.
+- **Brand:** "Élysée Chauffeur", tagline "Votre chauffeur privé à Paris" (editable business profile). Domain decided at deployment; the QR code uses the configured website address.
+- **Abuse protection:** per-IP limits on the public booking API (10 bookings, 60 price checks per hour), configurable.
+- Known simplification: a flight/train number always adds the airport/station waiting time to the pickup, even when the train is at the drop-off.
+
 ## Open Questions
 
 1. **Taxi licence or VTC? Which city?** Decides the pricing flow (see Pricing legal gate), map defaults and fixed prices. Blocks pricing work.

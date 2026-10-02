@@ -4,11 +4,12 @@ import { colors } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import type { TextKey } from '@/lib/i18n';
 
-const links: { href: '/admin' | '/admin/contacts' | '/admin/pricing' | '/admin/hours' | '/driver'; key: TextKey }[] = [
+const links: { href: '/admin' | '/admin/contacts' | '/admin/pricing' | '/admin/hours' | '/admin/business' | '/driver'; key: TextKey }[] = [
   { href: '/admin', key: 'rides' },
   { href: '/admin/contacts', key: 'contacts' },
   { href: '/admin/pricing', key: 'pricing' },
   { href: '/admin/hours', key: 'hours' },
+  { href: '/admin/business', key: 'business' },
   { href: '/driver', key: 'schedule' },
 ];
 

@@ -1,12 +1,14 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Platform, Text, View } from 'react-native';
 import * as api from '@/lib/api';
 import type { Ride } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { confirmAsk } from '@/lib/confirm';
 import { formatDateTime, formatKm, formatMinutes, formatPrice, parsePrice } from '@/lib/format';
+import { type BusinessInfo, getBusiness } from '@/lib/publicApi';
 import { useNow } from '@/lib/useNow';
+import { whatsappMessage, whatsappUrl } from '@/lib/whatsapp';
 import { StatusBadge } from './RideCard';
 import { Button, Card, ErrorText, Field, Label, Muted, Row, styles } from './ui';
 
@@ -30,6 +32,11 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
   const [price, setPrice] = useState('');
   const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'none' | 'propose' | 'complete' | 'cancel' | 'decline'>('none');
+  const [business, setBusiness] = useState<BusinessInfo | null>(null);
+
+  useEffect(() => {
+    if (as === 'driver') void getBusiness().then(setBusiness).catch(() => undefined);
+  }, [as]);
 
   const now = useNow();
   const pickup = new Date(ride.pickup_at).getTime();
@@ -120,8 +127,8 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
             {ride.contact.phone ? (
               <Button
                 kind="secondary"
-                title={t('whatsapp')}
-                onPress={() => void Linking.openURL(`https://wa.me/${ride.contact!.phone!.replace(/[^\d]/g, '')}`)}
+                title={t('sendWhatsApp')}
+                onPress={() => void Linking.openURL(whatsappUrl(ride.contact!.phone!, whatsappMessage(ride, business)))}
               />
             ) : null}
             <Button kind="secondary" title="GPS" onPress={() => openNavigation(ride.pickup_lat, ride.pickup_lng)} />

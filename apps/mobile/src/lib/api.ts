@@ -44,7 +44,8 @@ export type Ride = {
   answer_deadline: string | null;
   cancel_reason: string | null;
   created_at: string;
-  contact?: { id: string; full_name: string; phone: string | null; email: string | null } | null;
+  access_token: string;
+  contact?: { id: string; full_name: string; phone: string | null; email: string | null; language: 'fr' | 'en' } | null;
 };
 
 export type Place = { lat: number; lng: number; address: string };

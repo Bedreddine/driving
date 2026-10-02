@@ -116,7 +116,7 @@ class RideLifecycle {
         requireOpenDeadline(r);
         if (accept) {
             change(r, ACCEPTED, cols("agreed_price", r.proposedPrice(), "answer_deadline", null), null);
-            notices.about(r).tellDriver("price_accepted").publish();
+            notices.about(r).tellDriver("price_accepted").tellCustomer("ride_accepted").publish();
         } else {
             change(r, DECLINED_BY_CUSTOMER, cols("answer_deadline", null), null);
             notices.about(r).tellDriver("price_refused").publish();

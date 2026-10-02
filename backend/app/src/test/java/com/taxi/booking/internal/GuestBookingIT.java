@@ -110,6 +110,7 @@ class GuestBookingIT extends IntegrationTest {
         assertThat(emails().getLast().get("body").toString()).contains("The driver proposes €90");
 
         call(post("/api/public/bookings/" + token + "/respond"), null, Map.of("accept", true), 204);
+        assertThat(emails().getLast().get("subject").toString()).endsWith("Your ride is confirmed");
         var page = call(get("/api/public/bookings/" + token), null, null, 200);
         assertThat(page.get("status").asString()).isEqualTo("accepted");
         assertThat(page.get("agreed_price").decimalValue()).isEqualByComparingTo("90");
@@ -124,6 +125,14 @@ class GuestBookingIT extends IntegrationTest {
                 .isEqualTo("ride_cancelled_by_customer");
         assertThat(emails().getLast().get("subject").toString()).endsWith("Cancellation confirmed");
         call(post("/api/public/bookings/" + token + "/cancel"), null, null, 409); // already cancelled
+    }
+
+    @Test
+    void thePriceCanBeCheckedBeforeTypingAnyDetails() throws Exception {
+        var quote = call(post("/api/public/bookings"), null, Map.of("ride", ride(slot(10)), "dry_run", true), 200);
+        assertThat(quote.get("ok").asBoolean()).isTrue();
+        assertThat(quote.get("estimate").decimalValue()).isEqualByComparingTo("20.00");
+        assertThat(errorOf(post("/api/public/bookings"), null, Map.of("ride", ride(slot(10))), 400)).isEqualTo("BAD_INPUT");
     }
 
     @Test

@@ -69,13 +69,18 @@ class BookingService {
         return book(new Account(currentUser.id(), currentUser.isAdmin(), currentUser.isStaff()), in, dryRun, override);
     }
 
-    /** Guest request from the public booking website. Guests cannot quick-add nor override warnings. */
+    /**
+     * Guest request from the public booking website. Guests cannot quick-add nor override warnings.
+     * A price check (dry run) may come before the client typed their details: guest is then null.
+     */
     BookingResult bookAsGuest(Guest guest, RideInput in, boolean dryRun) {
-        if (in.quickAdd()) {
+        if (in.quickAdd() || (guest == null && !dryRun)) {
             throw ApiException.forbidden();
         }
-        return book(guest, in, dryRun, false);
+        return book(guest == null ? ANONYMOUS_QUOTE : guest, in, dryRun, false);
     }
+
+    private static final Guest ANONYMOUS_QUOTE = new Guest("", "", "", "fr");
 
     private BookingResult book(Booker booker, RideInput in, boolean dryRun, boolean override) {
         var driver = drivers.defaultDriver().orElseThrow(() -> ApiException.badRequest("NO_DRIVER"));

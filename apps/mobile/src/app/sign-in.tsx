@@ -35,6 +35,9 @@ export default function SignIn() {
       <Field label={t('password')} value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" />
       <ErrorText>{error}</ErrorText>
       <Button title={t('signIn')} onPress={submit} loading={busy} disabled={!email || !password} />
+      <Link href="/book" style={[styles.text, { textAlign: 'center', marginTop: 4, fontWeight: '700' }]}>
+        {t('bookWithoutAccount')}
+      </Link>
       <Link href="/sign-up" style={[styles.text, { textAlign: 'center', marginTop: 12 }]}>
         <Text>
           {t('noAccount')} <Text style={{ fontWeight: '700' }}>{t('signUp')}</Text>

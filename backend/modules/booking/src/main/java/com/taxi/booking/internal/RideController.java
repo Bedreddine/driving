@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 class RideController {
 
-    record ContactSummary(UUID id, String fullName, String phone, String email) {}
+    record ContactSummary(UUID id, String fullName, String phone, String email, String language) {}
 
     record RideView(@JsonUnwrapped Ride ride, ContactSummary contact) {}
 
@@ -155,7 +155,7 @@ class RideController {
                 .collect(Collectors.toMap(ContactRepository.Contact::id, Function.identity()));
         return list.stream().map(r -> {
             var c = byId.get(r.contactId());
-            return new RideView(r, c == null ? null : new ContactSummary(c.id(), c.fullName(), c.phone(), c.email()));
+            return new RideView(r, c == null ? null : new ContactSummary(c.id(), c.fullName(), c.phone(), c.email(), c.language()));
         }).toList();
     }
 

@@ -1,6 +1,12 @@
 # Taxi booking app
 
-A booking app for an independent taxi / VTC driver. Customers book a ride from A to B and see the price. The driver accepts each request, can propose a different price, and adds rides that come in by phone or WhatsApp. A web back office manages rides, customers, prices and working hours.
+A booking app for an independent chauffeur serving premium clients, branded **Élysée Chauffeur** by default (editable).
+
+- **The QR code on the driver's business card** opens the booking website (`/book`). A client books **without an account**: trip, name, phone, email. They see the price, send the request, and follow the ride through a **private link** (`/b/<token>`, also emailed): accept or refuse a proposed price, cancel.
+- **Clients who want an account** can sign up (website or phone app) to see their history and book again in one tap. A "Get the app" link appears once the store links are set.
+- **The driver** accepts each request, can propose a different price, adds rides that come in by phone or WhatsApp, and sends ready-written WhatsApp messages in one tap.
+- **The back office** manages rides, customers, prices, working hours, the business profile and the **printable QR code**.
+- **Clients are notified** by email (any SMTP server) and SMS (pluggable, off until a paid provider is chosen).
 
 Design: [docs/designs/taxi-booking-app.md](docs/designs/taxi-booking-app.md)
 
@@ -54,7 +60,7 @@ Test accounts (created on an empty database by the `dev` profile, used by `npm r
 
 ```bash
 npm test               # everything below
-npm run test:backend   # 46 tests: unit + integration on a real PostgreSQL (Testcontainers) + module boundaries
+npm run test:backend   # 60 tests: unit + integration on a real PostgreSQL (Testcontainers) + module boundaries
 npm run test:app       # 17 app tests (Paris time, prices, texts)
 cd apps/mobile && npx tsc --noEmit && npx expo lint
 ```
@@ -67,12 +73,15 @@ All JSON is snake_case. Errors come back as `{"error": "CODE"}` (e.g. `SLOT_TAKE
 |---|---|
 | `POST /api/auth/signup`, `/login`, `/refresh`, `/logout` | Accounts and tokens |
 | `GET/PATCH/DELETE /api/me` | Profile, language, account deletion |
+| `GET /api/public/business`, `/api/public/driver` | Public: brand, contact, vehicle capacity |
+| `POST /api/public/bookings` | Public: guest price check (`dry_run`, no details needed) or booking (with `client`) |
+| `GET /api/public/bookings/{token}`, `POST …/respond`, `POST …/cancel` | Public: the guest's private link |
 | `POST /api/rides` | Book, quick-add (driver) or price check (`dry_run`) |
 | `GET /api/rides`, `/api/rides/{id}`, `/api/rides/conflicts` | Rides visible to the caller |
 | `POST /api/rides/{id}/accept`, `propose-price`, `decline`, `respond`, `cancel`, `complete`, `no-show` | Status changes |
 | `GET /api/drivers/current`, `/api/driver/time-off` | Driver info, time off |
 | `/api/contacts`, `/api/admin/contact-links` | Customers, linking accounts |
-| `/api/admin/pricing/{driverId}`, `/api/admin/zones`, `/api/admin/working-hours` | Back office |
+| `/api/admin/pricing/{driverId}`, `/api/admin/zones`, `/api/admin/working-hours`, `/api/admin/business` | Back office |
 | `POST /api/push-tokens`, `GET /api/notifications` | Notifications |
 | `ws://…/ws?token=ACCESS_TOKEN` | Live updates: `{"type":"rides-changed"}` |
 
@@ -87,6 +96,7 @@ All JSON is snake_case. Errors come back as `{"error": "CODE"}` (e.g. `SLOT_TAKE
    This makes you driver and back-office admin, then stops. It can't be done over the API, on purpose.
    With one driver, running it later for another account moves the driver to that account.
 3. **Working hours, zones, fixed prices, surcharges:** back office.
+4. **Business profile and QR code:** back office → Entreprise. Set the website address **before printing cards**: the QR code points to `<website>/book`, and email links use the same address. Download the QR code as a high-resolution PNG for the printer.
 
 ## Put it online
 
@@ -103,6 +113,10 @@ Run the jar (or a container built with `./gradlew :app:bootBuildImage`) on any s
 | `CORS_ORIGINS` | Back-office website address(es), comma separated |
 | `OSRM_URL` | Your own routing server (default: public demo server) |
 | `PUSH_ENABLED` | `false` to stop sending phone notifications |
+| `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` | SMTP server for client emails (unset: emails only logged) |
+| `MAIL_FROM`, `MAIL_REPLY_TO` | Sender and reply-to address of client emails |
+| `SMS_ENABLED` | `true` once an SMS provider is wired (every SMS costs money) |
+| `FORWARD_HEADERS` | `framework` behind a reverse proxy, so the anti-spam limits see the real visitor IP |
 
 - **Back-office website:** `cd apps/mobile && npx expo export --platform web` creates `dist/`, a static site you can host for free (Cloudflare Pages, Netlify...). Send every path to `index.html`.
 - **Phone apps:** `npx eas-cli@latest build` then `npx eas-cli@latest submit` (EAS has a free tier).
@@ -119,7 +133,9 @@ Expiry of unanswered requests (every minute), reminders for rides left open, pho
 ## Not done yet
 
 - **Taxi or VTC and city:** confirm your licence; it decides how prices may be shown (see design doc).
-- **Password reset and email verification:** need an email (SMTP) sender; not built yet.
+- **Password reset and email verification** for accounts: the email sending exists now, the screens are not built yet.
+- **SMS provider:** the sending is pluggable (`CustomerChannels.SmsSender`); choose a provider (paid per message) and wire it.
+- **Website address and domain:** decided at deployment; the QR code shows a warning until it is set.
 - **Card payments** (phase 2): card payments always cost a fee per transaction, whoever the provider.
 - **Second driver:** the database supports it; bookings still go to the first active driver.
 - Travel times are typical road times from OpenStreetMap, not live traffic.

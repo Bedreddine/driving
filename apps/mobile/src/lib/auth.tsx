@@ -27,6 +27,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [signedIn, setSignedIn] = useState(isSignedIn);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(isSignedIn);
+  // Visitors without an account (booking website) can still switch language.
+  const [guestLang, setGuestLang] = useState<Lang | null>(null);
 
   const loadProfile = useCallback(
     () =>
@@ -52,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [loadProfile]);
 
-  const lang: Lang = profile?.language ?? deviceLang();
+  const lang: Lang = profile?.language ?? guestLang ?? deviceLang();
   const roles = useMemo(() => profile?.roles ?? [], [profile]);
 
   const value = useMemo<AuthState>(
@@ -65,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       t: (key) => translate(lang, key),
       err: (code) => errorText(lang, code),
       setLanguage: async (l) => {
+        if (!profile) return setGuestLang(l);
         setProfile(await api.patch<Profile>('/api/me', { language: l }));
       },
       reloadProfile: loadProfile,

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,7 +27,14 @@ export const colors = {
   danger: '#B3261E',
   success: '#1E7B3A',
   warning: '#8A5A00',
+  // Premium booking website
+  night: '#0E0E10',
+  gold: '#C8A96A',
+  goldDark: '#A88B4F',
 };
+
+/** Serif display font for the premium booking website. */
+export const serif = Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia, "Times New Roman", serif' });
 
 export function Screen({ children, scroll = true }: { children: ReactNode; scroll?: boolean }) {
   return (
@@ -65,15 +73,16 @@ export function Row({ children, style }: { children: ReactNode; style?: StylePro
 type ButtonProps = {
   title: string;
   onPress: () => void;
-  kind?: 'primary' | 'secondary' | 'danger';
+  kind?: 'primary' | 'secondary' | 'danger' | 'gold';
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
 };
 
 export function Button({ title, onPress, kind = 'primary', disabled, loading, style }: ButtonProps) {
-  const bg = kind === 'primary' ? colors.primary : kind === 'danger' ? colors.danger : colors.card;
-  const fg = kind === 'secondary' ? colors.primary : colors.primaryText;
+  const bg =
+    kind === 'primary' ? colors.primary : kind === 'danger' ? colors.danger : kind === 'gold' ? colors.gold : colors.card;
+  const fg = kind === 'secondary' ? colors.primary : kind === 'gold' ? colors.night : colors.primaryText;
   return (
     <Pressable
       accessibilityRole="button"

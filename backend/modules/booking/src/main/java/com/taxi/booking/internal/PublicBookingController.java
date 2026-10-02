@@ -36,7 +36,8 @@ class PublicBookingController {
                   @NotBlank @Email @Size(max = 200) String email,
                   @Pattern(regexp = "fr|en") String language) {}
 
-    record GuestBooking(@NotNull @Valid Client client, @NotNull @Valid RideInput ride, Boolean dryRun) {}
+    /** client is needed to book for real; a price check (dry_run) works without it. */
+    record GuestBooking(@Valid Client client, @NotNull @Valid RideInput ride, Boolean dryRun) {}
 
     record Answer(@NotNull Boolean accept) {}
 
@@ -93,8 +94,11 @@ class PublicBookingController {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_REQUESTS");
         }
         var c = body.client();
-        var guest = new BookingService.Guest(c.fullName().trim(), c.phone().trim(), c.email().trim(),
-                "en".equals(c.language()) ? "en" : "fr");
+        if (c == null && !dryRun) {
+            throw ApiException.badRequest("BAD_INPUT");
+        }
+        var guest = c == null ? null : new BookingService.Guest(c.fullName().trim(), c.phone().trim(),
+                c.email().trim(), "en".equals(c.language()) ? "en" : "fr");
         return booking.bookAsGuest(guest, body.ride(), dryRun);
     }
 
