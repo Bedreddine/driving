@@ -59,13 +59,15 @@ export function onAuthChange(listener: (signedIn: boolean) => void) {
 }
 
 async function send(method: string, path: string, body: unknown, token: string | null) {
+  // A file upload (FormData) sets its own multipart content type.
+  const form = typeof FormData !== 'undefined' && body instanceof FormData;
   return fetch(`${baseUrl}${path}`, {
     method,
     headers: {
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...(body !== undefined && !form ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: form ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
   });
 }
 
@@ -113,6 +115,8 @@ export const api = {
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
   del: <T>(path: string, body?: unknown) => request<T>('DELETE', path, body),
+  /** multipart/form-data upload (e.g. the driver's photo). */
+  upload: <T>(path: string, form: FormData) => request<T>('POST', path, form),
 };
 
 export async function signIn(email: string, password: string) {

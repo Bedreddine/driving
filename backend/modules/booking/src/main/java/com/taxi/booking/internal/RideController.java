@@ -17,6 +17,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,6 +33,13 @@ class RideController {
 
     record RideView(@JsonUnwrapped Ride ride, ContactSummary contact) {}
 
+    /**
+     * One ride with its road for the map (only here, not in lists: up to 400 points each).
+     *
+     * @param route [lng, lat] points, or null when the road was not known at booking time
+     */
+    record RideDetail(@JsonUnwrapped Ride ride, ContactSummary contact, List<double[]> route) {}
+
     record Reason(@Size(max = 500) String reason) {}
 
     record PriceBody(@NotNull @DecimalMin("0") BigDecimal price) {}
@@ -46,15 +54,17 @@ class RideController {
     private final DriverRepository drivers;
     private final ContactRepository contacts;
     private final CurrentUser currentUser;
+    private final DriverTracking tracking;
 
     RideController(BookingService booking, RideLifecycle lifecycle, RideRepository rides, DriverRepository drivers,
-                   ContactRepository contacts, CurrentUser currentUser) {
+                   ContactRepository contacts, CurrentUser currentUser, DriverTracking tracking) {
         this.booking = booking;
         this.lifecycle = lifecycle;
         this.rides = rides;
         this.drivers = drivers;
         this.contacts = contacts;
         this.currentUser = currentUser;
+        this.tracking = tracking;
     }
 
     /** Customer request, driver quick-add, or a price check with dry_run. */
@@ -79,12 +89,26 @@ class RideController {
     }
 
     @GetMapping("/api/rides/{id}")
-    RideView get(@PathVariable UUID id) {
+    RideDetail get(@PathVariable UUID id) {
         var ride = rides.find(id).orElseThrow(ApiException::notFound);
         if (!canSee(ride)) {
             throw ApiException.notFound();
         }
-        return withContacts(List.of(ride)).getFirst();
+        var view = withContacts(List.of(ride)).getFirst();
+        return new RideDetail(ride, view.contact(), rides.route(ride.id()));
+    }
+
+    /**
+     * Where the driver is, for the customer of the ride (or staff): 204 outside the window around an accepted ride
+     * or when the driver's phone sent nothing recent (see {@link DriverTracking}).
+     */
+    @GetMapping("/api/rides/{id}/driver-location")
+    ResponseEntity<DriverTracking.DriverLocation> driverLocation(@PathVariable UUID id) {
+        var ride = rides.find(id).orElseThrow(ApiException::notFound);
+        if (!canSee(ride)) {
+            throw ApiException.notFound();
+        }
+        return tracking.forRide(ride).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     /** Pending request id -> id of the confirmed ride it overlaps. */

@@ -3,11 +3,14 @@ import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-nativ
 import type { Place } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { searchAddress } from '@/lib/geocode';
-import { colors, Label, styles } from './ui';
+import { useTheme } from '@/lib/theme';
+import { ClearButton, FieldShell, fieldInputStyle, styles } from './ui';
 
 /** Address field with suggestions while typing (OpenStreetMap / Photon). */
 export function AddressInput({ label, value, onChange }: { label: string; value: Place | null; onChange: (p: Place | null) => void }) {
   const { lang, t } = useAuth();
+  const theme = useTheme();
+  const [focused, setFocused] = useState(false);
   const [text, setText] = useState(value?.address ?? '');
   const [selectedText, setSelectedText] = useState(value?.address ?? '');
   const [results, setResults] = useState<Place[]>([]);
@@ -48,23 +51,44 @@ export function AddressInput({ label, value, onChange }: { label: string; value:
   }, [text, lang, searching]);
 
   return (
-    <View style={styles.field}>
-      <Label>{label}</Label>
-      <TextInput
-        accessibilityLabel={label}
-        style={styles.input}
-        value={text}
-        placeholder={t('searchAddress')}
-        placeholderTextColor={colors.muted}
-        onChangeText={(v) => {
-          setText(v);
-          if (value) onChange(null);
-        }}
-        autoCorrect={false}
-      />
-      {loading && searching ? <ActivityIndicator style={{ marginTop: 6 }} color={colors.primary} /> : null}
+    <View>
+      <FieldShell
+        label={label}
+        floated={focused || text.length > 0}
+        focused={focused}
+        icon="map-pin"
+        right={
+          loading && searching ? (
+            <ActivityIndicator style={{ marginRight: 6 }} color={theme.primary} />
+          ) : text ? (
+            <ClearButton
+              label={`${label} ×`}
+              onPress={() => {
+                setText('');
+                setSelectedText('');
+                if (value) onChange(null);
+              }}
+            />
+          ) : null
+        }
+      >
+        <TextInput
+          accessibilityLabel={label}
+          style={fieldInputStyle(theme.text)}
+          value={text}
+          placeholder={t('searchAddress')}
+          placeholderTextColor={focused ? theme.muted : 'transparent'}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onChangeText={(v) => {
+            setText(v);
+            if (value) onChange(null);
+          }}
+          autoCorrect={false}
+        />
+      </FieldShell>
       {visibleResults.length > 0 ? (
-        <View style={[styles.card, { marginTop: 4, padding: 0, gap: 0 }]}>
+        <View style={[styles.card, { marginTop: 4, padding: 0, gap: 0, backgroundColor: theme.surface, borderColor: theme.rule }]}>
           {visibleResults.map((p, i) => (
             <Pressable
               key={`${p.lat},${p.lng},${i}`}
@@ -77,16 +101,16 @@ export function AddressInput({ label, value, onChange }: { label: string; value:
               style={({ pressed }) => ({
                 padding: 12,
                 borderTopWidth: i === 0 ? 0 : 1,
-                borderTopColor: colors.border,
-                backgroundColor: pressed ? colors.bg : undefined,
+                borderTopColor: theme.rule,
+                backgroundColor: pressed ? theme.paper : undefined,
               })}
             >
-              <Text style={styles.text}>{p.address}</Text>
+              <Text style={[styles.text, { color: theme.text }]}>{p.address}</Text>
             </Pressable>
           ))}
         </View>
       ) : null}
-      <Text style={[styles.muted, { fontSize: 11, marginTop: 2 }]}>© OpenStreetMap</Text>
+      <Text style={[styles.muted, { fontSize: 11, marginTop: 2, color: theme.muted }]}>© OpenStreetMap</Text>
     </View>
   );
 }

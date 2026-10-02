@@ -14,7 +14,7 @@ export default function Index() {
       </Screen>
     );
   }
-  if (!signedIn) return <Redirect href={Platform.OS === 'web' ? '/book' : '/sign-in'} />;
+  if (!signedIn) return <Redirect href="/book" />;
   // The back office is a desktop page; on a phone-sized screen the owner gets the driver screens.
   if (Platform.OS === 'web' && roles.includes('admin') && width >= 900) return <Redirect href="/admin" />;
   if (isStaff(roles)) return <Redirect href="/driver" />;

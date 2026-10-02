@@ -10,6 +10,7 @@ import static com.taxi.booking.internal.RideStatus.NO_SHOW;
 import static com.taxi.booking.internal.RideStatus.PRICE_PROPOSED;
 import static com.taxi.booking.internal.RideStatus.REQUESTED;
 
+import com.taxi.booking.CustomerForgotten;
 import com.taxi.identity.CurrentUser;
 import com.taxi.pricing.Pricing;
 import com.taxi.pricing.PricingPolicy.Licence;
@@ -22,6 +23,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,16 +40,18 @@ class RideLifecycle {
     private final Pricing pricing;
     private final Notices notices;
     private final CurrentUser currentUser;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
 
     RideLifecycle(RideRepository rides, DriverRepository drivers, ContactRepository contacts, Pricing pricing,
-                  Notices notices, CurrentUser currentUser, Clock clock) {
+                  Notices notices, CurrentUser currentUser, ApplicationEventPublisher events, Clock clock) {
         this.rides = rides;
         this.drivers = drivers;
         this.contacts = contacts;
         this.pricing = pricing;
         this.notices = notices;
         this.currentUser = currentUser;
+        this.events = events;
         this.clock = clock;
     }
 
@@ -228,7 +232,8 @@ class RideLifecycle {
 
     /**
      * Erases one customer (account deletion, or a phone / guest customer asking the business, GDPR):
-     * open rides are cancelled, past rides stay for accounting without personal data.
+     * open rides are cancelled, past rides stay for accounting without personal data, and other modules
+     * delete what they keep about this customer (their reviews).
      */
     @Transactional
     public void forgetContact(UUID contactId) {
@@ -243,6 +248,7 @@ class RideLifecycle {
         }
         rides.stripPersonalData(contact.get().id());
         contacts.anonymize(contact.get().id());
+        events.publishEvent(new CustomerForgotten(contact.get().id(), rides.idsForContact(contact.get().id())));
     }
 
     // ------------------------------------------------------------------ helpers

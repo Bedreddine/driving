@@ -1,6 +1,7 @@
 // The public booking website (business-card QR code): no account needed.
 import type { BookingInput, BookingResult, DriverInfo, RideStatus } from './api';
 import { api } from './http';
+import type { GuestReview } from './reviews';
 
 export type BusinessInfo = {
   name: string;
@@ -11,7 +12,29 @@ export type BusinessInfo = {
   site_url: string | null;
   app_store_url: string | null;
   play_store_url: string | null;
+  driver_name: string | null;
+  /** e.g. "Mercedes Classe E, noire". */
+  car: string | null;
+  /** Relative to the API address, versioned; null without a photo. */
+  photo_url: string | null;
+  /** « À bord »: what the driver offers in the car, in their order. */
+  amenities: Amenity[];
+  /** The car, as the driver describes it (photos outside and inside). */
+  vehicle?: Vehicle;
 };
+
+export type VehicleCategory = 'sedan' | 'van' | 'suv' | 'electric';
+export type VehiclePhoto = { id: string; kind: 'exterior' | 'interior'; caption: string | null; url: string };
+export type Vehicle = {
+  model: string | null;
+  color: string | null;
+  category: VehicleCategory | null;
+  year: number | null;
+  features: string[];
+  photos: VehiclePhoto[];
+};
+
+export type Amenity = { label_fr: string; label_en: string; detail_fr: string | null; detail_en: string | null };
 
 export type GuestClient = { full_name: string; phone: string; email: string; language: 'fr' | 'en' };
 
@@ -38,6 +61,12 @@ export type PublicRide = {
   answer_deadline: string | null;
   cancel_reason: string | null;
   client_name: string | null;
+  /** True once the ride is completed and the review is still open to changes. */
+  pickup: { lat: number; lng: number } | null;
+  dropoff: { lat: number; lng: number } | null;
+  route: [number, number][] | null;
+  can_review: boolean;
+  review: GuestReview | null;
 };
 
 export const getBusiness = () => api.get<BusinessInfo>('/api/public/business');
@@ -61,3 +90,16 @@ export function siteUrl(business: BusinessInfo | null): string | null {
   if (configured) return configured;
   return typeof window !== 'undefined' && window.location ? window.location.origin : null;
 }
+
+/** Where the driver is, shared only while the ride is near (204 = nothing to show). */
+export type DriverPosition = {
+  lat: number;
+  lng: number;
+  heading: number | null;
+  updated_at: string;
+  eta_to: 'pickup' | 'dropoff';
+  eta_s: number | null;
+  distance_m: number | null;
+};
+export const getDriverPosition = (token: string) =>
+  api.get<DriverPosition | undefined>(`/api/public/bookings/${encodeURIComponent(token)}/driver`);

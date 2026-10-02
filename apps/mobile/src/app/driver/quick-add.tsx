@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { parsePrice } from '@/lib/format';
 import { isPhone } from '@/lib/validate';
 import { api } from '@/lib/http';
+import { fonts } from '@/lib/theme';
 
 type Contact = { id: string; full_name: string; phone: string | null };
 type Source = NonNullable<BookingInput['source']>;
@@ -62,7 +63,7 @@ export default function QuickAdd() {
       {contact ? (
         <Card>
           <Row style={{ justifyContent: 'space-between' }}>
-            <Text style={[styles.text, { fontWeight: '700' }]}>
+            <Text style={[styles.text, { fontFamily: fonts.semibold }]}>
               {contact.full_name} {contact.phone ? `· ${contact.phone}` : ''}
             </Text>
             <Button kind="secondary" title="✕" onPress={() => setContact(null)} />

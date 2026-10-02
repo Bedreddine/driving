@@ -145,6 +145,7 @@ class BookingService {
         var passengers = in.passengers() == null ? 1 : in.passengers();
         var luggage = in.luggage() == null ? 0 : in.luggage();
         var vehicle = in.vehicle() == null ? "sedan" : in.vehicle();
+        var childSeats = in.childSeats() == null ? 0 : in.childSeats();
 
         int allowance = (travelRef != null || pricing.isAirportOrStation(pickup) ? policy.airportWaitMinutes() : 0)
                 + (meetGreet ? policy.meetGreetMinutes() : 0);
@@ -194,7 +195,7 @@ class BookingService {
         }
 
         var estimate = pricing.estimate(driver.id(), ZoneId.of(driver.timezone()), main.distanceM(), main.durationS(),
-                start, pickup, dropoff);
+                start, pickup, dropoff, new Pricing.Options(vehicle, luggage, childSeats, meetGreet));
 
         // Customers cannot override anything
         if (!quick) {
@@ -204,12 +205,13 @@ class BookingService {
         if (!errors.isEmpty() || (!warnings.isEmpty() && !override && !dryRun)) {
             return new BookingResult(false, null, dryRun, estimate.price(), estimate.currency(), estimate.fixed(),
                     policy.licence().value(), allowance, errors, warnings, errors.isEmpty(),
-                    clash.map(Ride::id).orElse(null), main.distanceM(), main.durationS(), main.estimated(), null);
+                    clash.map(Ride::id).orElse(null), main.distanceM(), main.durationS(), main.estimated(), null,
+                    main.path(), estimate.breakdown());
         }
         if (dryRun) {
             return new BookingResult(true, null, true, estimate.price(), estimate.currency(), estimate.fixed(),
                     policy.licence().value(), allowance, List.of(), warnings, false, null, main.distanceM(),
-                    main.durationS(), main.estimated(), null);
+                    main.durationS(), main.estimated(), null, main.path(), estimate.breakdown());
         }
 
         var status = quick ? RideStatus.ACCEPTED : RideStatus.REQUESTED;
@@ -225,8 +227,8 @@ class BookingService {
                 quick ? Objects.requireNonNullElse(in.source(), "phone") : "app", status, start,
                 in.pickup().address().trim(), pickup.lat(), pickup.lng(), in.dropoff().address().trim(), dropoff.lat(),
                 dropoff.lng(), main.distanceM(), main.durationS(), allowance, end.plus(gap), passengers, luggage,
-                vehicle, meetGreet, travelRef, blankToNull(in.customerNotes()), estimate.currency(), estimate.fixed(),
-                estimate.price(), agreed, deadline, accessToken));
+                childSeats, vehicle, meetGreet, travelRef, blankToNull(in.customerNotes()), estimate.currency(), estimate.fixed(),
+                estimate.price(), agreed, deadline, accessToken, main.path()));
         rides.logEvent(rideId, null, status, actor, warnings.isEmpty() ? null : "overridden: " + String.join(",", warnings));
 
         var change = notices.about(rideId);
@@ -239,7 +241,7 @@ class BookingService {
 
         return new BookingResult(true, rideId, false, estimate.price(), estimate.currency(), estimate.fixed(),
                 policy.licence().value(), allowance, List.of(), warnings, false, null, main.distanceM(),
-                main.durationS(), main.estimated(), accessToken);
+                main.durationS(), main.estimated(), accessToken, main.path(), estimate.breakdown());
     }
 
     /**
@@ -341,7 +343,7 @@ class BookingService {
     private static BookingResult rejected(List<String> errors, List<String> warnings, String currency, String licence,
                                           Route main) {
         return new BookingResult(false, null, false, null, currency, null, licence, null, errors, warnings, false,
-                null, main.distanceM(), main.durationS(), main.estimated(), null);
+                null, main.distanceM(), main.durationS(), main.estimated(), null, main.path(), null);
     }
 
     static boolean isOverlap(DataIntegrityViolationException e) {

@@ -20,6 +20,9 @@ class DriverRepository {
 
     record TimeOff(UUID id, UUID driverId, OffsetDateTime startsAt, OffsetDateTime endsAt, String reason) {}
 
+    /** The driver's latest known position. speed in m/s, accuracy in m; both and heading may be null. */
+    record Position(double lat, double lng, Double heading, Double speed, Double accuracy, OffsetDateTime updatedAt) {}
+
     private static final String COLUMNS = "id, user_id, display_name, phone, timezone, seats, luggage, vehicle, active";
 
     private final JdbcClient jdbc;
@@ -96,6 +99,29 @@ class DriverRepository {
     boolean deleteTimeOff(UUID driverId, UUID id) {
         return jdbc.sql("delete from time_off where id = :id and driver_id = :d").param("id", id).param("d", driverId)
                 .update() > 0;
+    }
+
+    /** Keeps only the latest position (no history). */
+    void savePosition(UUID driverId, Position p) {
+        jdbc.sql("""
+                insert into driver_positions (driver_id, lat, lng, heading, speed, accuracy, updated_at)
+                values (:d, :lat, :lng, :heading, :speed, :accuracy, :at)
+                on conflict (driver_id) do update set lat = excluded.lat, lng = excluded.lng, heading = excluded.heading,
+                  speed = excluded.speed, accuracy = excluded.accuracy, updated_at = excluded.updated_at""")
+                .param("d", driverId).param("lat", p.lat()).param("lng", p.lng()).param("heading", p.heading())
+                .param("speed", p.speed()).param("accuracy", p.accuracy()).param("at", p.updatedAt())
+                .update();
+    }
+
+    Optional<Position> position(UUID driverId) {
+        return jdbc.sql("select lat, lng, heading, speed, accuracy, updated_at from driver_positions where driver_id = :d")
+                .param("d", driverId).query(Position.class).optional();
+    }
+
+    /** Positions are personal data of the driver: erased with their account. */
+    void deletePositionsOfUser(UUID userId) {
+        jdbc.sql("delete from driver_positions where driver_id in (select id from drivers where user_id = :u)")
+                .param("u", userId).update();
     }
 
     static OffsetDateTime utc(Instant i) {

@@ -1,0 +1,28 @@
+# One click (Actions › Deploy › Run workflow): the server pulls the latest images and restarts.
+# Needs three repository secrets: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY (see docs/DEPLOY.md).
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Update the server
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=accept-new "$USER@$HOST" '
+            set -e
+            cd ~/driving
+            git pull --ff-only
+            docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml pull
+            docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --remove-orphans
+            docker image prune -f
+          '

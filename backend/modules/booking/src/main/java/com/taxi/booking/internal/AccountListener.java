@@ -40,6 +40,7 @@ class AccountListener {
     @EventListener
     void on(UserDeleting e) {
         lifecycle.forgetCustomer(e.userId());
+        drivers.deletePositionsOfUser(e.userId());
     }
 
     /** The owner drives the first driver record, created if there is none yet. */

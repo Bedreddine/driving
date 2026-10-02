@@ -26,6 +26,8 @@ export type Ride = {
   dropoff_address: string;
   dropoff_lat: number;
   dropoff_lng: number;
+  /** Driving route for the map (ride detail only, not in lists). */
+  route?: [number, number][] | null;
   distance_m: number;
   duration_s: number;
   pickup_allowance_min: number;
@@ -61,6 +63,7 @@ export type BookingInput = {
   luggage?: number;
   vehicle?: 'sedan' | 'van';
   meet_greet?: boolean;
+  child_seats?: number;
   travel_ref?: string;
   customer_notes?: string;
   agreed_price?: number;
@@ -79,7 +82,27 @@ export type BookingResult = {
   distance_m?: number;
   duration_s?: number;
   route_estimated?: boolean;
+  /** Driving route for the map, [lng, lat] points; null when only estimated. */
+  route?: [number, number][] | null;
+  /** How the price is made, line by line; the amounts add up to `estimate`. */
+  breakdown?: PriceLine[];
   error?: string;
+};
+
+export type PriceLine = {
+  code: 'base' | 'distance' | 'time' | 'minimum' | 'fixed' | 'van' | 'surcharge' | 'meet_greet' | 'child_seat' | 'extra_luggage';
+  amount: number;
+  quantity: number | null;
+  rate: number | null;
+};
+
+/** Prices of the options, set by the driver. */
+export type Extras = {
+  meet_greet_fee: number;
+  child_seat_fee: number;
+  included_luggage: number;
+  extra_luggage_fee: number;
+  waiting_per_minute: number;
 };
 
 export { ApiError };
@@ -140,6 +163,7 @@ export type DriverInfo = {
   timezone: string;
   licence: 'vtc' | 'taxi';
   currency: string;
+  extras?: Extras;
 };
 
 export const getDriver = () => api.get<DriverInfo>('/api/drivers/current').catch(() => null);

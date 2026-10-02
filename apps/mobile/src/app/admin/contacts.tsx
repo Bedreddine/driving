@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { Button, Card, ErrorText, Field, Label, Muted, Notice, Row, styles, Title } from '@/components/ui';
+import { Button, Card, CardTitle, colors, ErrorText, Field, Muted, Notice, Row, styles, Title } from '@/components/ui';
 import { forgetContact, linkContacts } from '@/lib/api';
 import { confirmAsk } from '@/lib/confirm';
 import { useAuth } from '@/lib/auth';
@@ -62,7 +62,7 @@ export default function AdminContacts() {
 
       {suggestions.length > 0 ? (
         <Card>
-          <Label>{t('linkSuggestions')}</Label>
+          <CardTitle icon="link">{t('linkSuggestions')}</CardTitle>
           {suggestions.map((s) => {
             const a = byId.get(s.account_contact_id);
             const e = byId.get(s.existing_contact_id);
@@ -93,9 +93,9 @@ export default function AdminContacts() {
       <ErrorText>{error}</ErrorText>
       <Row style={{ gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <View style={{ flex: 1, minWidth: 300, gap: 8 }}>
-          <Field label={t('search')} value={search} onChangeText={setSearch} />
+          <Field label={t('search')} value={search} onChangeText={setSearch} icon="search" clearable />
           {shown.map((c) => (
-            <Card key={c.id} style={selected?.id === c.id ? { borderColor: '#1F3A5F', borderWidth: 2 } : undefined}>
+            <Card key={c.id} style={selected?.id === c.id ? { borderColor: colors.primary, borderWidth: 2 } : undefined}>
               <Text style={[styles.text, { fontWeight: '600' }]} onPress={() => setSelected(c)}>
                 {c.full_name} {c.user_id ? '📱' : ''}
               </Text>

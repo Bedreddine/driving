@@ -21,6 +21,7 @@ import tools.jackson.databind.JsonNode;
 class BookingIT extends IntegrationTest {
 
     @MockitoBean RoutingClient routing;
+    @org.springframework.beans.factory.annotation.Autowired RideRepository rides;
 
     @BeforeEach
     void roads() {
@@ -193,10 +194,40 @@ class BookingIT extends IntegrationTest {
     }
 
     @Test
+    void aCustomerQuoteCarriesTheRoadForTheMap() throws Exception {
+        when(routing.route(any(), any())).thenReturn(new RoutingClient.Route(4000, 900, false,
+                java.util.List.of(new double[] {2.3376, 48.8606}, new double[] {2.295, 48.8738})));
+        var q = book(clientToken, ride(slot(10)), true, false);
+        assertThat(q.get("route").size()).isEqualTo(2);
+        assertThat(q.get("route").get(1).get(1).asDouble()).isEqualTo(48.8738);
+
+        // The ride keeps its road: the ride page (customer and driver) draws it.
+        var rideId = bookId(clientToken, ride(slot(10)));
+        for (var token : new String[] {clientToken, ownerToken}) {
+            var detail = call(get("/api/rides/" + rideId), token, null, 200);
+            assertThat(detail.get("route").size()).isEqualTo(2);
+            assertThat(detail.get("route").get(0).get(0).asDouble()).isEqualTo(2.3376);
+            assertThat(detail.get("pickup_lat").asDouble()).isEqualTo(48.8606);
+            assertThat(detail.get("dropoff_lng").asDouble()).isEqualTo(2.2950);
+        }
+        assertThat(call(get("/api/rides"), clientToken, null, 200).get(0).has("route")).as("not in lists").isFalse();
+
+        // The road shows the exact addresses: erased with them.
+        rides.stripPersonalData(contactOf(clientId));
+        assertThat(call(get("/api/rides/" + rideId), ownerToken, null, 200).get("route").isNull()).isTrue();
+
+        when(routing.route(any(), any())).thenReturn(new RoutingClient.Route(4000, 900, false)); // no geometry
+        assertThat(book(clientToken, ride(slot(10)), true, false).get("route").isNull()).isTrue();
+        var withoutRoad = bookId(clientToken, ride(slot(14)));
+        assertThat(call(get("/api/rides/" + withoutRoad), clientToken, null, 200).get("route").isNull()).isTrue();
+    }
+
+    @Test
     void mapServerDownStillGivesACautiousEstimate() {
         var r = RoutingClient.fallback(new GeoPoint(48.8606, 2.3376), new GeoPoint(48.8738, 2.2950));
         assertThat(r.estimated()).isTrue();
         assertThat(r.durationS()).isGreaterThan(15 * 60);
+        assertThat(r.path()).isNull(); // no road to draw
     }
 
     @Test

@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
+import tools.jackson.databind.json.JsonMapper;
 
 @Repository
 class RideRepository {
@@ -23,17 +24,19 @@ class RideRepository {
     record NewRide(UUID contactId, UUID driverId, UUID createdBy, String source, RideStatus status, Instant pickupAt,
                    String pickupAddress, double pickupLat, double pickupLng, String dropoffAddress, double dropoffLat,
                    double dropoffLng, int distanceM, int durationS, int pickupAllowanceMin, Instant blockedUntil,
-                   int passengers, int luggage, String vehicle, boolean meetGreet, String travelRef,
+                   int passengers, int luggage, int childSeats, String vehicle, boolean meetGreet, String travelRef,
                    String customerNotes, String currency, boolean isFixedPrice, BigDecimal estimatedPrice,
-                   BigDecimal agreedPrice, Instant answerDeadline, String accessToken) {}
+                   BigDecimal agreedPrice, Instant answerDeadline, String accessToken, List<double[]> route) {}
 
     static final Duration NEIGHBOUR_WINDOW = Duration.ofHours(12);
     private static final String HOLDING = "('accepted', 'price_proposed')";
 
     private final JdbcClient jdbc;
+    private final JsonMapper json;
 
-    RideRepository(JdbcClient jdbc) {
+    RideRepository(JdbcClient jdbc, JsonMapper json) {
         this.jdbc = jdbc;
+        this.json = json;
     }
 
     Optional<Ride> find(UUID id) {
@@ -55,13 +58,14 @@ class RideRepository {
         return jdbc.sql("""
                 insert into rides (contact_id, driver_id, created_by, source, status, pickup_at, pickup_address,
                   pickup_lat, pickup_lng, dropoff_address, dropoff_lat, dropoff_lng, distance_m, duration_s,
-                  pickup_allowance_min, blocked_range, passengers, luggage, vehicle, meet_greet, travel_ref,
-                  customer_notes, currency, is_fixed_price, estimated_price, agreed_price, answer_deadline, access_token)
+                  pickup_allowance_min, blocked_range, passengers, luggage, child_seats, vehicle, meet_greet, travel_ref,
+                  customer_notes, currency, is_fixed_price, estimated_price, agreed_price, answer_deadline, access_token,
+                  route)
                 values (:contactId, :driverId, :createdBy, :source, :status, :pickupAt, :pickupAddress,
                   :pickupLat, :pickupLng, :dropoffAddress, :dropoffLat, :dropoffLng, :distanceM, :durationS,
-                  :pickupAllowanceMin, tstzrange(:pickupAt, :blockedUntil), :passengers, :luggage, :vehicle,
+                  :pickupAllowanceMin, tstzrange(:pickupAt, :blockedUntil), :passengers, :luggage, :childSeats, :vehicle,
                   :meetGreet, :travelRef, :customerNotes, :currency, :isFixedPrice, :estimatedPrice, :agreedPrice,
-                  :answerDeadline, :accessToken)
+                  :answerDeadline, :accessToken, cast(:route as jsonb))
                 returning id""")
                 .param("contactId", r.contactId()).param("driverId", r.driverId()).param("createdBy", r.createdBy())
                 .param("source", r.source()).param("status", r.status().value()).param("pickupAt", utc(r.pickupAt()))
@@ -70,14 +74,23 @@ class RideRepository {
                 .param("dropoffLat", r.dropoffLat()).param("dropoffLng", r.dropoffLng())
                 .param("distanceM", r.distanceM()).param("durationS", r.durationS())
                 .param("pickupAllowanceMin", r.pickupAllowanceMin()).param("blockedUntil", utc(r.blockedUntil()))
-                .param("passengers", r.passengers()).param("luggage", r.luggage()).param("vehicle", r.vehicle())
+                .param("passengers", r.passengers()).param("luggage", r.luggage())
+                .param("childSeats", r.childSeats()).param("vehicle", r.vehicle())
                 .param("meetGreet", r.meetGreet()).param("travelRef", r.travelRef())
                 .param("customerNotes", r.customerNotes()).param("currency", r.currency())
                 .param("isFixedPrice", r.isFixedPrice()).param("estimatedPrice", r.estimatedPrice())
                 .param("agreedPrice", r.agreedPrice())
                 .param("answerDeadline", r.answerDeadline() == null ? null : utc(r.answerDeadline()))
                 .param("accessToken", r.accessToken())
+                .param("route", r.route() == null ? null : json.writeValueAsString(r.route()))
                 .query(UUID.class).single();
+    }
+
+    /** The road of a ride for the map, [lng, lat] points; null when it was not known at booking time. */
+    List<double[]> route(UUID id) {
+        var text = jdbc.sql("select route::text from rides where id = :id and route is not null").param("id", id)
+                .query(String.class).list();
+        return text.isEmpty() ? null : List.of(json.readValue(text.getFirst(), double[][].class));
     }
 
     /**
@@ -195,6 +208,10 @@ class RideRepository {
                 .param("c", contactId).query(Ride.class).list();
     }
 
+    List<UUID> idsForContact(UUID contactId) {
+        return jdbc.sql("select id from rides where contact_id = :c").param("c", contactId).query(UUID.class).list();
+    }
+
     /** Keep rides for accounting without personal data. */
     void stripPersonalData(UUID contactId) {
         // (also used by the back office to erase a phone customer on request)
@@ -202,7 +219,7 @@ class RideRepository {
                 update rides set pickup_address = '(address removed)', dropoff_address = '(address removed)',
                   pickup_lat = round(pickup_lat::numeric, 2), pickup_lng = round(pickup_lng::numeric, 2),
                   dropoff_lat = round(dropoff_lat::numeric, 2), dropoff_lng = round(dropoff_lng::numeric, 2),
-                  customer_notes = null, travel_ref = null
+                  customer_notes = null, travel_ref = null, route = null
                 where contact_id = :c""").param("c", contactId).update();
     }
 
@@ -215,7 +232,7 @@ class RideRepository {
                 update rides set pickup_address = '(address removed)', dropoff_address = '(address removed)',
                   pickup_lat = round(pickup_lat::numeric, 2), pickup_lng = round(pickup_lng::numeric, 2),
                   dropoff_lat = round(dropoff_lat::numeric, 2), dropoff_lng = round(dropoff_lng::numeric, 2)
-                , customer_notes = null, travel_ref = null
+                , customer_notes = null, travel_ref = null, route = null
                 where status in ('completed', 'no_show') and pickup_at < now() - interval '3 years'
                   and pickup_address <> '(address removed)'""").update();
         jdbc.sql("delete from rides where status in ('completed', 'no_show') and pickup_at < now() - interval '10 years'")

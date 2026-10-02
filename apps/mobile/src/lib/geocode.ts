@@ -38,3 +38,18 @@ export async function searchAddress(query: string, lang: 'fr' | 'en', signal?: A
     address: labelFor(f.properties) || `${f.geometry.coordinates[1].toFixed(5)}, ${f.geometry.coordinates[0].toFixed(5)}`,
   }));
 }
+
+/** The address of a point on the map (a pin dropped by hand). Falls back to the coordinates. */
+export async function reverseGeocode(lng: number, lat: number, lang: 'fr' | 'en', signal?: AbortSignal): Promise<Place> {
+  const fallback = { lng, lat, address: `${lat.toFixed(5)}, ${lng.toFixed(5)}` };
+  try {
+    const res = await fetch(`${baseUrl}/reverse?lon=${lng}&lat=${lat}&lang=${lang === 'en' ? 'en' : 'fr'}`, { signal });
+    if (!res.ok) return fallback;
+    const body = (await res.json()) as { features?: PhotonFeature[] };
+    const f = body.features?.[0];
+    return f ? { lng, lat, address: labelFor(f.properties) || fallback.address } : fallback;
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw e;
+    return fallback;
+  }
+}

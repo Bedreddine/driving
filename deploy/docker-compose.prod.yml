@@ -1,0 +1,36 @@
+# Production on a server, on top of docker-compose.yml:
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml pull
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d
+# Uses the images built by GitHub Actions and puts Caddy in front for HTTPS (free Let's Encrypt certificates).
+services:
+  backend:
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .env, e.g. bedreddine}/driving-backend:${IMAGE_TAG:-latest}
+    pull_policy: always
+    environment:
+      SITE_URL: https://${DOMAIN:?set DOMAIN in .env}
+      CORS_ORIGINS: https://${DOMAIN}
+
+  web:
+    image: ghcr.io/${GHCR_OWNER}/driving-web:${IMAGE_TAG:-latest}
+    pull_policy: always
+    ports: !reset []
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

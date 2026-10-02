@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /** Every error leaves the API as {"error": CODE} so the app can show a translated sentence. */
@@ -36,6 +38,18 @@ class ApiErrorHandler {
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
             HandlerMethodValidationException.class})
     ResponseEntity<Map<String, String>> unreadable(Exception e) {
+        return ResponseEntity.badRequest().body(Map.of("error", "BAD_INPUT"));
+    }
+
+    /** An upload over the server's multipart limit (spring.servlet.multipart): same answer as the app's own check. */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ResponseEntity<Map<String, String>> tooLarge(MaxUploadSizeExceededException e) {
+        return ResponseEntity.badRequest().body(Map.of("error", "IMAGE_TOO_LARGE"));
+    }
+
+    /** A broken or unreadable upload. */
+    @ExceptionHandler(MultipartException.class)
+    ResponseEntity<Map<String, String>> badUpload(MultipartException e) {
         return ResponseEntity.badRequest().body(Map.of("error", "BAD_INPUT"));
     }
 

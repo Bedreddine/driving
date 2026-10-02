@@ -10,6 +10,7 @@ COPY modules/identity/build.gradle.kts modules/identity/
 COPY modules/pricing/build.gradle.kts modules/pricing/
 COPY modules/booking/build.gradle.kts modules/booking/
 COPY modules/notification/build.gradle.kts modules/notification/
+COPY modules/review/build.gradle.kts modules/review/
 RUN ./gradlew --no-daemon -q :app:dependencies > /dev/null
 COPY . .
 RUN ./gradlew --no-daemon -q :app:bootJar -x test

@@ -36,6 +36,7 @@ final class Messages {
                     p -> "Course terminée : " + p.get("final_price") + " €",
                     p -> "Ride completed: €" + p.get("final_price"))),
             Map.entry("ride_no_show", of("Course marquée comme non présentée", "Ride marked as no-show")),
+            Map.entry("new_review", of("Nouvel avis client à valider", "New customer review to approve")),
             Map.entry("close_ride_reminder",
                     of("Course à clôturer : terminée ou client absent ?", "Ride to close: completed or no-show?")));
 

@@ -2,13 +2,18 @@
 
 A booking app for an independent chauffeur serving premium clients, branded **Élysée Chauffeur** by default (editable).
 
-- **The QR code on the driver's business card** opens the booking website (`/book`). A client books **without an account**: trip, name, phone, email. They see the price, send the request, and follow the ride through a **private link** (`/b/<token>`, also emailed): accept or refuse a proposed price, cancel.
+- **The QR code on the driver's business card** opens the home page (`/book`): Paris at night on a living map, the driver's name and car, what is on board, and one button. A client books **without an account**: pickup and drop-off from **suggested places** (airports, stations, palace hotels), an address search, or **a pin on the map** (address and GPS coordinates); the route draws itself on the map and the price appears; then name, phone, email. They follow the ride through a **private link** (`/b/<token>`, also emailed) with its map: accept or refuse a proposed price, cancel.
+- **On the map:** tap to place a point, drag the pins to the exact door (price and route update), search results as numbered pins, and « Ma position » that follows the phone. Once a ride is confirmed, the client sees the driver's car approach live with its arrival time.
+- **The car:** the driver describes it (model, colour, year, category, features) and adds up to 12 photos outside and inside; clients see it on the home page, while booking and on the ride page, with a full-screen gallery.
+- **Animated QR card:** in Entreprise, the QR code draws itself line by line with the car photo, name and model; download it as a GIF to share, or show it full screen from the driver app (« Mon QR code »). The plain PNG stays for printing.
+- **« À bord »:** the driver lists what is offered in the car (water, soft drinks, sweets, non-smoking, chargers, Wi-Fi, child seat…, or their own lines) and sets their name, car and photo in the back office.
 - **Clients who want an account** can sign up (website or phone app) to see their history and book again in one tap. A "Get the app" link appears once the store links are set.
 - **The driver** accepts each request, can propose a different price, adds rides that come in by phone or WhatsApp, and sends ready-written WhatsApp messages in one tap.
-- **The back office** manages rides, customers, prices, working hours, the business profile and the **printable QR code**.
+- **The back office** manages rides, customers, prices (per km with distance tiers, per minute, minimum, van price in %, paid options such as meet & greet, child seat, extra luggage, night/weekend surcharges, fixed zone prices, and a price simulator on a map), working hours, the business profile and the **printable QR code**.
 - **Clients are notified** by email (any SMTP server) and SMS (pluggable, off until a paid provider is chosen).
+- **Client reviews:** after a completed ride, the private link asks for stars and a word for the driver. A client who agrees appears as a reference ("J. Smith · London") on the booking page, only after the owner publishes it in the back office (Client reviews). No review is ever shown without that consent and approval.
 
-Design: [docs/designs/taxi-booking-app.md](docs/designs/taxi-booking-app.md)
+Design: [docs/designs/taxi-booking-app.md](docs/designs/taxi-booking-app.md) (product) and [DESIGN.md](DESIGN.md) (visual system "Nuit Blanche": Paris at night, asphalt and street-lamp amber, Instrument Serif / Manrope / JetBrains Mono, a living dark map, the route drawing itself and the price counting up).
 
 Everything is open source and free to run:
 
@@ -17,6 +22,7 @@ Everything is open source and free to run:
 | Backend API | Java 21, Spring Boot 4.1, Spring Modulith, Gradle |
 | Database | PostgreSQL 17 + Flyway migrations |
 | iPhone, Android and back-office website (one codebase) | [Expo](https://expo.dev) + Expo Router |
+| Maps | [MapLibre](https://maplibre.org) (website and phones) with [OpenFreeMap](https://openfreemap.org) tiles, restyled at night; no API key |
 | Address search | [Photon](https://photon.komoot.io) (OpenStreetMap) |
 | Road distance and time | [OSRM](https://project-osrm.org) (OpenStreetMap) |
 | Push notifications | Expo push service (free) |
@@ -31,6 +37,7 @@ backend/                     Gradle monorepo (Java 21, Spring Boot 4.1)
   modules/pricing/           Price formula, fixed zone prices, surcharges
   modules/booking/           Rides, customers, drivers, availability, status rules, jobs
   modules/notification/      Notifications, Expo push, live updates (WebSocket)
+  modules/review/            Client reviews: left from the ride link, approved by the owner
 apps/mobile/                 Expo app: customer, driver and back office (src/app/admin, web)
 docs/designs/                Design document
 ```
@@ -46,7 +53,7 @@ npm install
 npm run backend        # Spring Boot on :8080; starts PostgreSQL in Docker automatically (backend/app/compose.yaml)
 cp apps/mobile/.env.example apps/mobile/.env
 npm run web            # back office + app in the browser
-npm run mobile         # phone: scan the QR code with Expo Go (set EXPO_PUBLIC_API_URL to your computer's IP)
+npm run mobile         # phone: needs a development build because of the native map (see below); set EXPO_PUBLIC_API_URL to your computer's IP
 ```
 
 Test accounts (created on an empty database by the `dev` profile, used by `npm run backend`):
@@ -60,8 +67,8 @@ Test accounts (created on an empty database by the `dev` profile, used by `npm r
 
 ```bash
 npm test               # everything below
-npm run test:backend   # 67 tests: unit + integration on a real PostgreSQL (Testcontainers) + module boundaries
-npm run test:app       # 17 app tests (Paris time, prices, texts)
+npm run test:backend   # 110 tests: unit + integration on a real PostgreSQL (Testcontainers) + module boundaries
+npm run test:app       # 32 app tests (Paris time, prices, texts, reviewer names, map style, places, QR lines)
 cd apps/mobile && npx tsc --noEmit && npx expo lint
 ```
 
@@ -125,9 +132,13 @@ docker compose run --rm backend --taxi.make-owner=you@example.com --server.port=
 | `docker compose down -v` | Stop **and erase all data** |
 | `docker compose exec postgres pg_dump -U taxi taxi > backup.sql` | Back up the database |
 
+If port 8080 is already used on your computer, choose another: `WEB_PORT=8099 SITE_URL=http://localhost:8099 docker compose up -d`.
+
 In production, put HTTPS in front (e.g. Caddy or your host's load balancer) pointing to `WEB_PORT`, and set `SITE_URL` to your `https://` domain. The phone apps are not built by Docker: they use EAS (see below).
 
 ## Put it online
+
+Step by step (GitHub Actions + a server + HTTPS): [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ```bash
 cd backend && ./gradlew :app:bootJar      # backend/app/build/libs/app-0.1.0.jar
@@ -153,7 +164,7 @@ Run the jar (or a container built with `./gradlew :app:bootBuildImage`) on any s
 
 ### Map servers in production
 
-The public Photon and OSRM servers are free but meant for light use. For real traffic, run your own (both are open source, Docker images exist) and set `EXPO_PUBLIC_GEOCODER_URL` (app) and `OSRM_URL` (backend). If the routing server is down, bookings still work with a cautious estimate (30 km/h + 15 min), and the app says so.
+The public Photon and OSRM servers are free but meant for light use. For real traffic, run your own (both are open source, Docker images exist) and set `EXPO_PUBLIC_GEOCODER_URL` (app) and `OSRM_URL` (backend). If the routing server is down, bookings still work with a cautious estimate (30 km/h + 15 min), and the app says so. Map tiles come from OpenFreeMap (free, no key, no usage limit announced; self-hostable too): point `EXPO_PUBLIC_MAP_STYLE_URL` at another MapLibre style if you ever move.
 
 ### Background jobs
 
@@ -165,6 +176,8 @@ Expiry of unanswered requests (every minute), reminders for rides left open, pho
 - **Password reset and email verification** for accounts: the email sending exists now, the screens are not built yet.
 - **SMS provider:** the sending is pluggable (`CustomerChannels.SmsSender`); choose a provider (paid per message) and wire it.
 - **Website address and domain:** decided at deployment; the QR code shows a warning until it is set.
+- **Live position from the driver's phone** is sent while the ride screen is open (the switch « Partager ma position en direct »). Sharing with the screen locked needs background location, not set up yet.
+- **Testing on a phone:** the map is a native module, so Expo Go cannot show it. Build a free development build once with EAS (`npx eas-cli build --profile development`) and install it on your phone; after that, `npm run mobile` works like Expo Go. The website needs nothing.
 - **Phone app release:** run `eas init` (your Expo account) for push notifications, add the Android Firebase file, replace the placeholder icon/splash and the `com.example.taxiapp` bundle ids, and set the real API address in `apps/mobile/eas.json`.
 - **Email links opening the app** (universal links): needs the final domain.
 - **Card payments** (phase 2): card payments always cost a fee per transaction, whoever the provider.

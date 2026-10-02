@@ -1,5 +1,6 @@
 package com.taxi.booking.internal;
 
+import com.taxi.pricing.Estimate;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
@@ -33,6 +34,7 @@ final class BookingModels {
             @Min(0) @Max(50) Integer luggage,
             @Pattern(regexp = "sedan|van") String vehicle,
             Boolean meetGreet,
+            @Min(0) @Max(3) Integer childSeats,
             @Size(max = 500) String travelRef,
             @Size(max = 500) String customerNotes,
             @DecimalMin("0") BigDecimal agreedPrice) {
@@ -54,6 +56,11 @@ final class BookingModels {
         }
     }
 
+    /**
+     * @param route     the road for the map as [lng, lat] points (at most 400), or null when the map server did not
+     *                  answer and distance and time are estimates
+     * @param breakdown how the estimate is made (lines adding up to it), or null when there is no estimate
+     */
     record BookingResult(
             boolean ok,
             UUID rideId,
@@ -70,5 +77,7 @@ final class BookingModels {
             Integer distanceM,
             Integer durationS,
             boolean routeEstimated,
-            String accessToken) {}
+            String accessToken,
+            List<double[]> route,
+            List<Estimate.Line> breakdown) {}
 }

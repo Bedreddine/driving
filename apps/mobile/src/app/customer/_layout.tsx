@@ -1,5 +1,5 @@
 import { Redirect, Stack } from 'expo-router';
-import { colors } from '@/components/ui';
+import { colors, fonts } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 
 export default function CustomerLayout() {
@@ -9,6 +9,9 @@ export default function CustomerLayout() {
     <Stack
       screenOptions={{
         headerTintColor: colors.primary,
+        headerStyle: { backgroundColor: colors.bg },
+        headerTitleStyle: { fontFamily: fonts.semibold, color: colors.text },
+        headerShadowVisible: false,
         contentStyle: { backgroundColor: colors.bg },
       }}
     >

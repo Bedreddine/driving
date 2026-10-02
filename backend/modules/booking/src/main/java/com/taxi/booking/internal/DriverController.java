@@ -1,19 +1,25 @@
 package com.taxi.booking.internal;
 
 import com.taxi.identity.CurrentUser;
+import com.taxi.pricing.Extras;
 import com.taxi.pricing.Pricing;
 import com.taxi.shared.ApiException;
+import com.taxi.shared.RateLimiter;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -28,23 +34,40 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 class DriverController {
 
+    /** @param extras prices of the ride options, shown before the client picks them */
     record DriverInfo(UUID id, String displayName, String phone, int seats, int luggage, String vehicle,
-                      String timezone, String licence, String currency) {}
+                      String timezone, String licence, String currency, Extras extras) {}
 
     record TimeOffBody(@NotNull Instant startsAt, @NotNull Instant endsAt, @Size(max = 200) String reason) {}
 
     record HoursBody(@Min(0) @Max(6) int weekday, @NotNull LocalTime startTime, @NotNull LocalTime endTime) {}
 
+    /** speed in m/s, accuracy in m; heading, speed and accuracy may be null (unknown). */
+    record LocationBody(@NotNull @Min(-90) @Max(90) Double lat, @NotNull @Min(-180) @Max(180) Double lng,
+                        @DecimalMin("0") @DecimalMax(value = "360", inclusive = false) Double heading,
+                        @DecimalMin("0") @DecimalMax("150") Double speed,
+                        @DecimalMin("0") @DecimalMax("100000") Double accuracy) {}
+
+    private static final Duration LOCATION_WINDOW = Duration.ofSeconds(5);
+
     private final DriverRepository drivers;
     private final Pricing pricing;
     private final CurrentUser currentUser;
+    private final DriverTracking tracking;
+    private final RateLimiter limiter;
     private final Clock clock;
+    private final int maxLocationUpdates;
 
-    DriverController(DriverRepository drivers, Pricing pricing, CurrentUser currentUser, Clock clock) {
+    DriverController(DriverRepository drivers, Pricing pricing, CurrentUser currentUser, DriverTracking tracking,
+                     RateLimiter limiter, Clock clock,
+                     @Value("${taxi.driver.max-location-updates-per-5s:5}") int maxLocationUpdates) {
         this.drivers = drivers;
         this.pricing = pricing;
         this.currentUser = currentUser;
+        this.tracking = tracking;
+        this.limiter = limiter;
         this.clock = clock;
+        this.maxLocationUpdates = maxLocationUpdates;
     }
 
     /** The driver customers book: name, phone (for short-notice calls), vehicle capacity, licence. */
@@ -53,7 +76,18 @@ class DriverController {
         var d = drivers.defaultDriver().orElseThrow(() -> ApiException.badRequest("NO_DRIVER"));
         var policy = pricing.policy(d.id());
         return new DriverInfo(d.id(), d.displayName(), d.phone(), d.seats(), d.luggage(), d.vehicle(), d.timezone(),
-                policy.licence().value(), policy.currency());
+                policy.licence().value(), policy.currency(), pricing.extras(d.id()));
+    }
+
+    /** The driver's phone sends its position (about once per second at most) while driving. */
+    @PostMapping("/api/driver/location")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void location(@RequestBody @Valid LocationBody body) {
+        var driver = myDriver();
+        if (!limiter.allow("location:" + driver.id(), maxLocationUpdates, LOCATION_WINDOW)) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_REQUESTS");
+        }
+        tracking.record(driver.id(), body.lat(), body.lng(), body.heading(), body.speed(), body.accuracy());
     }
 
     @GetMapping("/api/driver/time-off")

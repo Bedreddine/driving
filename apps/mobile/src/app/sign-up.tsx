@@ -4,6 +4,7 @@ import { Text } from 'react-native';
 import { Button, ErrorText, Field, Screen, styles, Title } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { signUp } from '@/lib/http';
+import { fonts } from '@/lib/theme';
 
 export default function SignUp() {
   const { t, err, lang, signedIn } = useAuth();
@@ -41,7 +42,7 @@ export default function SignUp() {
       <Button title={t('signUp')} onPress={submit} loading={busy} disabled={!fullName || !email || password.length < 8} />
       <Link href="/sign-in" style={[styles.text, { textAlign: 'center', marginTop: 12 }]}>
         <Text>
-          {t('haveAccount')} <Text style={{ fontWeight: '700' }}>{t('signIn')}</Text>
+          {t('haveAccount')} <Text style={{ fontFamily: fonts.semibold }}>{t('signIn')}</Text>
         </Text>
       </Link>
     </Screen>

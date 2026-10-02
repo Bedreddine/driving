@@ -26,6 +26,11 @@ spring:
       # Calls to outside services (Expo push...) give up instead of hanging.
       connect-timeout: 5s
       read-timeout: 15s
+  servlet:
+    multipart:
+      # Driver and car photo uploads: the app itself refuses over 3 MB (IMAGE_TOO_LARGE); this outer limit is only a backstop.
+      max-file-size: 5MB
+      max-request-size: 6MB
   task:
     scheduling:
       pool:
@@ -70,6 +75,12 @@ taxi:
     # Booking website (QR code) limits per visitor IP and per hour, against spam.
     max-bookings-per-hour: 10
     max-quotes-per-hour: 60
+    max-reviews-per-hour: 20
+    # Live driver position on the ride page, per visitor IP and per minute (the page polls every 5 s).
+    max-tracking-per-minute: 60
+  driver:
+    # Position updates from the driver's phone: about one per second, small bursts allowed.
+    max-location-updates-per-5s: 5
   sms:
     # SMS always costs money per message. Off until a provider is chosen (texts are only logged).
     enabled: ${SMS_ENABLED:false}

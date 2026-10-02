@@ -10,8 +10,11 @@ import { type BusinessInfo, getBusiness } from '@/lib/publicApi';
 import { useNow } from '@/lib/useNow';
 import { phoneDigits } from '@/lib/validate';
 import { whatsappMessage, whatsappUrl } from '@/lib/whatsapp';
+import { LiveShare } from './LiveShare';
+import { MapScene } from './map/MapScene';
 import { StatusBadge } from './RideCard';
 import { Button, Card, colors, ErrorText, Field, Label, Muted, Row, styles } from './ui';
+import { fonts } from '@/lib/theme';
 
 type Props = { ride: Ride; as: 'customer' | 'driver'; onChanged: () => void; licence?: 'vtc' | 'taxi' };
 
@@ -79,9 +82,17 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
 
   return (
     <View style={{ gap: 12 }}>
+      <MapScene
+        style={{ height: 220, borderRadius: 3, borderWidth: 1, borderColor: colors.border }}
+        mode="trip"
+        pickup={[ride.pickup_lng, ride.pickup_lat]}
+        dropoff={[ride.dropoff_lng, ride.dropoff_lat]}
+        route={ride.route ?? [[ride.pickup_lng, ride.pickup_lat], [ride.dropoff_lng, ride.dropoff_lat]]}
+        padding={{ top: 30, bottom: 30, left: 30, right: 30 }}
+      />
       <Card>
         <Row style={{ justifyContent: 'space-between' }}>
-          <Text style={[styles.text, { fontWeight: '700', fontSize: 18 }]}>{formatDateTime(ride.pickup_at, lang)}</Text>
+          <Text style={[styles.text, { fontFamily: fonts.semibold, fontSize: 18 }]}>{formatDateTime(ride.pickup_at, lang)}</Text>
           <StatusBadge status={ride.status} />
         </Row>
         <Label>{t('from')}</Label>
@@ -89,7 +100,7 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
         <Label>{t('to')}</Label>
         <Text style={styles.text}>{ride.dropoff_address}</Text>
         <Muted>
-          {formatKm(ride.distance_m, lang)} · {formatMinutes(ride.duration_s)} · {ride.passengers} 👤 · {ride.luggage} 🧳 ·{' '}
+          {formatKm(ride.distance_m, lang)} · {formatMinutes(ride.duration_s)} · {ride.passengers} {t('passengersShort')} · {ride.luggage} {t('luggageShort')} ·{' '}
           {t(ride.vehicle)}
           {ride.meet_greet ? ` · ${t('meetGreet')}` : ''}
         </Muted>
@@ -105,19 +116,19 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
         {ride.proposed_price !== null ? (
           <Row style={{ justifyContent: 'space-between' }}>
             <Text style={styles.text}>{t('proposedPrice')}</Text>
-            <Text style={[styles.text, { fontWeight: '700' }]}>{formatPrice(ride.proposed_price, ride.currency, lang)}</Text>
+            <Text style={[styles.text, { fontFamily: fonts.semibold }]}>{formatPrice(ride.proposed_price, ride.currency, lang)}</Text>
           </Row>
         ) : null}
         {ride.agreed_price !== null ? (
           <Row style={{ justifyContent: 'space-between' }}>
             <Text style={styles.text}>{t('agreedPrice')}</Text>
-            <Text style={[styles.text, { fontWeight: '700' }]}>{formatPrice(ride.agreed_price, ride.currency, lang)}</Text>
+            <Text style={[styles.text, { fontFamily: fonts.semibold }]}>{formatPrice(ride.agreed_price, ride.currency, lang)}</Text>
           </Row>
         ) : null}
         {ride.final_price !== null ? (
           <Row style={{ justifyContent: 'space-between' }}>
             <Text style={styles.text}>{t('finalPrice')}</Text>
-            <Text style={[styles.text, { fontWeight: '700' }]}>{formatPrice(ride.final_price, ride.currency, lang)}</Text>
+            <Text style={[styles.text, { fontFamily: fonts.semibold }]}>{formatPrice(ride.final_price, ride.currency, lang)}</Text>
           </Row>
         ) : null}
         {ride.answer_deadline && (as === 'driver' || ride.status === 'price_proposed') ? (
@@ -164,6 +175,12 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
       ) : null}
 
       {/* ---------------- Driver actions ---------------- */}
+      {as === 'driver' && ride.status === 'accepted' ? (
+        <Card>
+          <LiveShare />
+        </Card>
+      ) : null}
+
       {as === 'driver' && ride.status === 'requested' && mode === 'none' ? (
         <View style={{ gap: 8 }}>
           <Button

@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { AddressInput } from '@/components/AddressInput';
-import { Button, Card, Field, Label, Muted, Notice, Row, Segmented, styles, Title, Toggle } from '@/components/ui';
+import { PriceSimulator } from '@/components/PriceSimulator';
+import { Button, Card, CardTitle, Field, Label, Muted, Notice, Row, Segmented, styles, Title, Toggle } from '@/components/ui';
 import type { Place } from '@/lib/api';
 import { getDriver } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { dayNames, type TextKey } from '@/lib/i18n';
 import { formatPrice, parsePrice } from '@/lib/format';
 import { api } from '@/lib/http';
+import { fonts } from '@/lib/theme';
 
 type Settings = {
   driver_id: string;
@@ -21,12 +23,30 @@ type Settings = {
   meet_greet_minutes: number;
   min_gap_minutes: number;
   lead_time_minutes: number;
+  distance_tiers: Tier[];
+  van_percent: number;
+  meet_greet_fee: number;
+  child_seat_fee: number;
+  included_luggage: number;
+  extra_luggage_fee: number;
+  waiting_per_minute: number;
 };
+type Tier = { from_km: number; per_km: number };
 type Zone = { id: string; name: string; kind: 'airport' | 'station' | 'other'; radius_m: number };
 type Fixed = { id: string; from_zone: string; to_zone: string; price: number; both_directions: boolean };
 type Surcharge = { id: string; name: string; days: number[]; start_time: string; end_time: string; percent: number };
 
 const moneyFields = ['base_fare', 'per_km', 'per_minute', 'minimum_fare'] as const;
+const extraMoneyFields = ['meet_greet_fee', 'child_seat_fee', 'extra_luggage_fee', 'waiting_per_minute'] as const;
+const extraIntFields = ['included_luggage', 'van_percent'] as const;
+const extraLabels: Record<(typeof extraMoneyFields)[number] | (typeof extraIntFields)[number], TextKey> = {
+  meet_greet_fee: 'meetGreetFee',
+  child_seat_fee: 'childSeatFee',
+  extra_luggage_fee: 'extraLuggageFee',
+  waiting_per_minute: 'waitingPerMinute',
+  included_luggage: 'includedLuggage',
+  van_percent: 'vanPercent',
+};
 const minuteFields = ['airport_wait_minutes', 'meet_greet_minutes', 'min_gap_minutes', 'lead_time_minutes'] as const;
 const minuteLabels: Record<(typeof minuteFields)[number], TextKey> = {
   airport_wait_minutes: 'airportWait',
@@ -53,6 +73,7 @@ export default function AdminPricing() {
   const [surcharges, setSurcharges] = useState<Surcharge[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [tiers, setTiers] = useState<{ from_km: string; per_km: string }[]>([]);
 
   // new zone / fixed price / surcharge
   const [zonePlace, setZonePlace] = useState<Place | null>(null);
@@ -76,7 +97,8 @@ export default function AdminPricing() {
         setSettings(r.settings);
         if (r.settings) {
           const st = r.settings;
-          setForm(Object.fromEntries([...moneyFields, ...minuteFields].map((k) => [k, String(st[k])])));
+          setForm(Object.fromEntries([...moneyFields, ...minuteFields, ...extraMoneyFields, ...extraIntFields].map((k) => [k, String(st[k] ?? '')])));
+          setTiers((st.distance_tiers ?? []).map((x) => ({ from_km: String(x.from_km), per_km: String(x.per_km) })));
         }
         setZones(r.zones);
         setFixed(r.fixed);
@@ -101,21 +123,40 @@ export default function AdminPricing() {
     }
   };
 
+  /** The settings as typed on the page (saved or not); null when a value is not valid. */
+  const typedSettings = (): Record<string, unknown> | null => {
+    if (!settings) return null;
+    const update: Record<string, unknown> = { licence: settings.licence };
+    for (const k of [...moneyFields, ...extraMoneyFields]) {
+      const v = parsePrice(form[k] ?? '');
+      if (v === null) return null;
+      update[k] = v;
+    }
+    for (const k of [...minuteFields, ...extraIntFields]) {
+      const v = Number(form[k]);
+      if (!Number.isInteger(v) || v < 0) return null;
+      update[k] = v;
+    }
+    const list: Tier[] = [];
+    for (const tier of tiers) {
+      const from = parsePrice(tier.from_km);
+      const rate = parsePrice(tier.per_km);
+      if (from === null || from <= 0 || rate === null) return null;
+      list.push({ from_km: from, per_km: rate });
+    }
+    update.distance_tiers = list.sort((a, b) => a.from_km - b.from_km);
+    return update;
+  };
+
   const saveSettings = async () => {
     if (!settings) return;
-    const update: Record<string, number | string> = { licence: settings.licence };
-    const driverId = settings.driver_id;
-    for (const k of moneyFields) {
-      const v = parsePrice(form[k] ?? '');
-      if (v === null) return setError(err('BAD_INPUT'));
-      update[k] = v;
-    }
-    for (const k of minuteFields) {
-      const v = Number(form[k]);
-      if (!Number.isInteger(v) || v < 0) return setError(err('BAD_INPUT'));
-      update[k] = v;
-    }
-    if (await mutate(() => api.put(`/api/admin/pricing/${driverId}/settings`, update))) setSaved(true);
+    const update = typedSettings();
+    if (!update) return setError(err('BAD_INPUT'));
+    if (await mutate(() => api.put(`/api/admin/pricing/${settings.driver_id}/settings`, update))) setSaved(true);
+  };
+  const setField = (k: string) => (v: string) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    setSaved(false);
   };
 
   const zoneName_ = (id: string) => zones.find((z) => z.id === id)?.name ?? '?';
@@ -128,7 +169,7 @@ export default function AdminPricing() {
         <Title>{t('pricing')}</Title>
 
         <Card>
-          <Label>{t('licence')}</Label>
+          <CardTitle icon="sliders">{t('licence')}</CardTitle>
           <Segmented<'vtc' | 'taxi'>
             options={[
               { value: 'vtc', label: 'VTC' },
@@ -170,13 +211,64 @@ export default function AdminPricing() {
               </View>
             ))}
           </Row>
-          {saved ? <Notice tone="success">{t('saved')}</Notice> : null}
-          <Button title={t('save')} onPress={saveSettings} />
         </Card>
 
         <Card>
-          <Label>{t('surcharges')}</Label>
-          <Muted>{t('surchargesHelp')}</Muted>
+          <CardTitle icon="trending-down" help={t('distanceTiersHelp')}>{t('distanceTiers')}</CardTitle>
+          {tiers.map((tier, i) => (
+            <Row key={i} style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <View style={{ minWidth: 140, flex: 1 }}>
+                <Field
+                  label={t('fromKm')}
+                  value={tier.from_km}
+                  onChangeText={(v) => (setTiers((l) => l.map((x, j) => (j === i ? { ...x, from_km: v } : x))), setSaved(false))}
+                  keyboardType="decimal-pad"
+                  mono
+                />
+              </View>
+              <View style={{ minWidth: 140, flex: 1 }}>
+                <Field
+                  label={t('perKmTier')}
+                  value={tier.per_km}
+                  onChangeText={(v) => (setTiers((l) => l.map((x, j) => (j === i ? { ...x, per_km: v } : x))), setSaved(false))}
+                  keyboardType="decimal-pad"
+                  mono
+                />
+              </View>
+              <Button kind="danger" size="sm" icon="trash-2" title={t('remove')} onPress={() => (setTiers((l) => l.filter((_, j) => j !== i)), setSaved(false))} />
+            </Row>
+          ))}
+          {tiers.length < 5 ? (
+            <Button kind="secondary" icon="plus" title={t('addTier')} onPress={() => setTiers((l) => [...l, { from_km: '', per_km: '' }])} />
+          ) : null}
+        </Card>
+
+        <Card>
+          <CardTitle icon="plus-square">{t('extrasTitle')}</CardTitle>
+          <Row style={{ gap: 12, flexWrap: 'wrap' }}>
+            {[...extraMoneyFields, ...extraIntFields].map((k) => (
+              <View key={k} style={{ minWidth: 200, flex: 1 }}>
+                <Field
+                  label={t(extraLabels[k])}
+                  value={form[k] ?? ''}
+                  onChangeText={setField(k)}
+                  keyboardType={k === 'included_luggage' || k === 'van_percent' ? 'number-pad' : 'decimal-pad'}
+                  mono
+                />
+              </View>
+            ))}
+          </Row>
+          <Muted>{t('vanHelp')}</Muted>
+          <Muted>{t('waitingHelp')}</Muted>
+        </Card>
+
+        {saved ? <Notice tone="success">{t('saved')}</Notice> : null}
+        <Button icon="check" title={t('save')} onPress={saveSettings} />
+
+        <PriceSimulator driverId={settings.driver_id} currency={settings.currency} typedSettings={typedSettings} />
+
+        <Card>
+          <CardTitle icon="moon" help={t('surchargesHelp')}>{t('surcharges')}</CardTitle>
           {surcharges.map((s) => (
             <Row key={s.id} style={{ justifyContent: 'space-between' }}>
               <Text style={styles.text}>
@@ -185,6 +277,8 @@ export default function AdminPricing() {
               </Text>
               <Button
                 kind="danger"
+                size="sm"
+                icon="trash-2"
                 title={t('delete')}
                 onPress={() => void mutate(() => api.del(`/api/admin/surcharges/${s.id}`))}
               />
@@ -207,7 +301,8 @@ export default function AdminPricing() {
           <DayPicker value={scDays} onChange={setScDays} />
           <Button
             kind="secondary"
-            title={`+ ${t('surcharges')}`}
+            icon="plus"
+            title={t('surcharges')}
             onPress={async () => {
               const pct = parsePrice(scPercent);
               if (
@@ -227,8 +322,7 @@ export default function AdminPricing() {
         </Card>
 
         <Card>
-          <Label>{t('zones')}</Label>
-          <Muted>{t('zonesHelp')}</Muted>
+          <CardTitle icon="target" help={t('zonesHelp')}>{t('zones')}</CardTitle>
           {zones.map((z) => (
             <Row key={z.id} style={{ justifyContent: 'space-between' }}>
               <Text style={styles.text}>
@@ -236,6 +330,8 @@ export default function AdminPricing() {
               </Text>
               <Button
                 kind="danger"
+                size="sm"
+                icon="trash-2"
                 title={t('delete')}
                 onPress={() => void mutate(() => api.del(`/api/admin/zones/${z.id}`))}
               />
@@ -265,7 +361,8 @@ export default function AdminPricing() {
           />
           <Button
             kind="secondary"
-            title={`+ ${t('zones')}`}
+            icon="plus"
+            title={t('zones')}
             onPress={async () => {
               const radius = Number(zoneRadius);
               if (!zonePlace || !zoneName.trim() || !Number.isInteger(radius) || radius <= 0)
@@ -286,7 +383,7 @@ export default function AdminPricing() {
         </Card>
 
         <Card>
-          <Label>{t('fixedPrices')}</Label>
+          <CardTitle icon="tag">{t('fixedPrices')}</CardTitle>
           {fixed.map((f) => (
             <Row key={f.id} style={{ justifyContent: 'space-between' }}>
               <Text style={styles.text}>
@@ -295,6 +392,8 @@ export default function AdminPricing() {
               </Text>
               <Button
                 kind="danger"
+                size="sm"
+                icon="trash-2"
                 title={t('delete')}
                 onPress={() => void mutate(() => api.del(`/api/admin/fixed-prices/${f.id}`))}
               />
@@ -316,7 +415,8 @@ export default function AdminPricing() {
           <Toggle label={t('bothDirections')} value={fxBoth} onChange={setFxBoth} />
           <Button
             kind="secondary"
-            title={`+ ${t('fixedPrices')}`}
+            icon="plus"
+            title={t('fixedPrices')}
             onPress={async () => {
               const p = parsePrice(fxPrice);
               if (!fxFrom || !fxTo || p === null) return setError(err('BAD_INPUT'));
@@ -332,7 +432,7 @@ export default function AdminPricing() {
         <View style={{ position: 'absolute', left: 20, right: 20, bottom: 20, maxWidth: 860 }}>
           <Notice tone="warning">
             {error}{' '}
-            <Text onPress={() => setError(null)} style={{ fontWeight: '700' }}>
+            <Text onPress={() => setError(null)} style={{ fontFamily: fonts.semibold }}>
               {' '}
               ✕
             </Text>

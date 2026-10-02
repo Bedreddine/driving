@@ -26,6 +26,7 @@ record Ride(
         int pickupAllowanceMin,
         int passengers,
         int luggage,
+        int childSeats,
         String vehicle,
         boolean meetGreet,
         String travelRef,
@@ -46,7 +47,7 @@ record Ride(
     static final String COLUMNS = """
             id, contact_id, driver_id, created_by, source, status, pickup_at, pickup_address, pickup_lat, pickup_lng,
             dropoff_address, dropoff_lat, dropoff_lng, distance_m, duration_s, pickup_allowance_min, passengers,
-            luggage, vehicle, meet_greet, travel_ref, customer_notes, currency, is_fixed_price, estimated_price,
+            luggage, child_seats, vehicle, meet_greet, travel_ref, customer_notes, currency, is_fixed_price, estimated_price,
             proposed_price, agreed_price, final_price, final_price_reason, answer_deadline, cancel_reason,
             created_at, updated_at, access_token""";
 

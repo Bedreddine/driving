@@ -6,5 +6,6 @@ include(
     "modules:identity",
     "modules:pricing",
     "modules:booking",
+    "modules:review",
     "modules:notification",
 )

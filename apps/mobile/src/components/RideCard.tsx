@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDateTime, formatPrice } from '@/lib/format';
 import type { TextKey } from '@/lib/i18n';
 import { Card, colors, Row, styles } from './ui';
+import { fonts } from '@/lib/theme';
 
 const statusColor: Record<RideStatus, string> = {
   requested: colors.warning,
@@ -20,8 +21,10 @@ const statusColor: Record<RideStatus, string> = {
 export function StatusBadge({ status }: { status: RideStatus }) {
   const { t } = useAuth();
   return (
-    <View style={{ backgroundColor: statusColor[status], borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 }}>
-      <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{t(`status_${status}` as TextKey)}</Text>
+    <View style={{ backgroundColor: statusColor[status], borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 }}>
+      <Text style={{ color: colors.primaryText, fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', fontFamily: fonts.semibold }}>
+        {t(`status_${status}` as TextKey)}
+      </Text>
     </View>
   );
 }
@@ -37,7 +40,7 @@ export function RideCard({ ride, onPress, showCustomer, conflict }: { ride: Ride
     <Pressable onPress={onPress} accessibilityRole="button">
       <Card style={conflict ? { borderColor: colors.danger, borderWidth: 2 } : undefined}>
         <Row style={{ justifyContent: 'space-between' }}>
-          <Text style={[styles.text, { fontWeight: '700' }]}>{formatDateTime(ride.pickup_at, lang)}</Text>
+          <Text style={[styles.text, { fontFamily: fonts.semibold }]}>{formatDateTime(ride.pickup_at, lang)}</Text>
           <StatusBadge status={ride.status} />
         </Row>
         {showCustomer && ride.contact ? (
@@ -51,9 +54,9 @@ export function RideCard({ ride, onPress, showCustomer, conflict }: { ride: Ride
         </Text>
         <Row style={{ justifyContent: 'space-between' }}>
           <Text style={styles.muted}>
-            {ride.passengers} 👤 · {ride.luggage} 🧳{ride.travel_ref ? ` · ${ride.travel_ref}` : ''}
+            {ride.passengers} {t('passengersShort')} · {ride.luggage} {t('luggageShort')}{ride.travel_ref ? ` · ${ride.travel_ref}` : ''}
           </Text>
-          <Text style={[styles.text, { fontWeight: '700' }]}>{formatPrice(ridePrice(ride), ride.currency, lang)}</Text>
+          <Text style={[styles.text, { fontFamily: fonts.semibold }]}>{formatPrice(ridePrice(ride), ride.currency, lang)}</Text>
         </Row>
         {conflict ? <Text style={styles.error}>⚠ {t('conflict')}</Text> : null}
       </Card>

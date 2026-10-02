@@ -41,10 +41,11 @@ export default function DriverHome() {
   return (
     <Screen>
       <Row style={{ gap: 8, flexWrap: 'wrap' }}>
-        <Button title={`+ ${t('quickAdd')}`} onPress={() => router.push('/driver/quick-add')} style={{ flex: 1 }} />
-        <Button kind="secondary" title={t('timeOff')} onPress={() => router.push('/driver/time-off')} />
+        <Button icon="plus" title={t('quickAdd')} onPress={() => router.push('/driver/quick-add')} style={{ flex: 1 }} />
+        <Button kind="secondary" icon="grid" title={t('showQr')} onPress={() => router.push('/driver/qr')} />
+        <Button kind="secondary" icon="slash" title={t('timeOff')} onPress={() => router.push('/driver/time-off')} />
         {Platform.OS === 'web' && roles.includes('admin') ? (
-          <Button kind="secondary" title={t('backOffice')} onPress={() => router.push('/admin')} />
+          <Button kind="secondary" icon="briefcase" title={t('backOffice')} onPress={() => router.push('/admin')} />
         ) : null}
       </Row>
       <ErrorText>{error ? err(error) : null}</ErrorText>

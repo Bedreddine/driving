@@ -137,6 +137,38 @@ class GuestBookingIT extends IntegrationTest {
     }
 
     @Test
+    void theQuoteAndTheBookingCarryTheRoadForTheMap() throws Exception {
+        var road = List.of(new double[] {2.3376, 48.8606}, new double[] {2.31, 48.87}, new double[] {2.295, 48.8738});
+        when(routing.route(any(), any())).thenReturn(new RoutingClient.Route(4000, 900, false, road));
+
+        var quote = call(post("/api/public/bookings"), null, Map.of("ride", ride(slot(10)), "dry_run", true), 200);
+        var route = quote.get("route");
+        assertThat(route.size()).isEqualTo(3);
+        assertThat(route.get(0).get(0).asDouble()).isEqualTo(2.3376); // [lng, lat]
+        assertThat(route.get(0).get(1).asDouble()).isEqualTo(48.8606);
+        assertThat(route.get(2).get(0).asDouble()).isEqualTo(2.295);
+        var booked = guestBook(VIP, ride(slot(10)), false);
+        assertThat(booked.get("route").size()).isEqualTo(3);
+
+        // The private ride page draws the same road between the two points.
+        var page = call(get("/api/public/bookings/" + token(booked)), null, null, 200);
+        assertThat(page.get("pickup").get("lat").asDouble()).isEqualTo(48.8606);
+        assertThat(page.get("pickup").get("lng").asDouble()).isEqualTo(2.3376);
+        assertThat(page.get("dropoff").get("lat").asDouble()).isEqualTo(48.8738);
+        assertThat(page.get("dropoff").get("lng").asDouble()).isEqualTo(2.2950);
+        assertThat(page.get("route").size()).isEqualTo(3);
+        assertThat(page.get("route").get(1).get(0).asDouble()).isEqualTo(2.31);
+
+        // Map server down: an estimate, no road to draw.
+        when(routing.route(any(), any())).thenAnswer(i -> RoutingClient.fallback(i.getArgument(0), i.getArgument(1)));
+        var estimated = call(post("/api/public/bookings"), null, Map.of("ride", ride(slot(30)), "dry_run", true), 200);
+        assertThat(estimated.get("route_estimated").asBoolean()).isTrue();
+        assertThat(estimated.get("route").isNull()).isTrue();
+        var noRoad = token(guestBook(VIP, ride(slot(30)), false));
+        assertThat(call(get("/api/public/bookings/" + noRoad), null, null, 200).get("route").isNull()).isTrue();
+    }
+
+    @Test
     void wrongLinksShowNothing() throws Exception {
         call(get("/api/public/bookings/not-a-real-token-0000000000000000000000"), null, null, 404);
         call(post("/api/public/bookings/short/cancel"), null, null, 404);

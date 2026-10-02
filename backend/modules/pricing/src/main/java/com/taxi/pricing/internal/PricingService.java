@@ -1,7 +1,9 @@
 package com.taxi.pricing.internal;
 
 import com.taxi.pricing.Estimate;
+import com.taxi.pricing.Extras;
 import com.taxi.pricing.Pricing;
+import com.taxi.pricing.Pricing.Options;
 import com.taxi.pricing.PricingPolicy;
 import com.taxi.pricing.PricingPolicy.Licence;
 import com.taxi.shared.ApiException;
@@ -38,13 +40,31 @@ class PricingService implements Pricing {
 
     @Override
     @Transactional(readOnly = true)
-    public Estimate estimate(UUID driverId, ZoneId driverZone, int distanceM, int durationS, Instant pickupAt,
-                             GeoPoint pickup, GeoPoint dropoff) {
+    public Extras extras(UUID driverId) {
         var s = settings(driverId);
+        return new Extras(s.meetGreetFee(), s.childSeatFee(), s.includedLuggage(), s.extraLuggageFee(),
+                s.waitingPerMinute());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Estimate estimate(UUID driverId, ZoneId driverZone, int distanceM, int durationS, Instant pickupAt,
+                             GeoPoint pickup, GeoPoint dropoff, Options options) {
+        return estimate(settings(driverId), driverZone, distanceM, durationS, pickupAt, pickup, dropoff, options);
+    }
+
+    /** Price with the given settings: the saved ones, or values the owner is trying in the simulator. */
+    @Transactional(readOnly = true)
+    public Estimate estimate(PricingRepository.Settings s, ZoneId driverZone, int distanceM, int durationS,
+                             Instant pickupAt, GeoPoint pickup, GeoPoint dropoff, Options options) {
+        var driverId = s.driverId();
         var windows = repo.surcharges(driverId).stream()
                 .map(x -> new PriceCalculator.SurchargeWindow(Set.copyOf(x.days()), x.startTime(), x.endTime(), x.percent()))
                 .toList();
         var percent = PriceCalculator.largestSurcharge(windows, pickupAt.atZone(driverZone));
+        var vanPercent = options.van() ? s.vanPercent() : 100;
+        var extras = PriceCalculator.extras(s.meetGreetFee(), s.childSeatFee(), s.includedLuggage(),
+                s.extraLuggageFee(), options.meetGreet(), options.childSeats(), options.luggage());
 
         var zones = repo.zones();
         var atPickup = zoneIds(zones, pickup);
@@ -55,13 +75,16 @@ class PricingService implements Pricing {
                 .min(Comparator.comparing(PricingRepository.FixedPrice::price));
         if (fixed.isPresent()) {
             var f = fixed.get();
-            var price = PriceCalculator.withSurcharge(f.price(), f.surchargesApply() ? percent : BigDecimal.ZERO);
-            return new Estimate(price, true, s.currency());
+            var quote = PriceCalculator.finish(PriceCalculator.fixed(f.price()), vanPercent,
+                    f.surchargesApply() ? percent : BigDecimal.ZERO, extras);
+            return new Estimate(quote.price(), true, s.currency(), quote.lines());
         }
 
         var rates = new PriceCalculator.Rates(s.baseFare(), s.perKm(), s.perMinute(), s.minimumFare());
-        var price = PriceCalculator.withSurcharge(PriceCalculator.formula(rates, distanceM, durationS), percent);
-        return new Estimate(price, false, s.currency());
+        var tiers = s.distanceTiers().stream().map(t -> new PriceCalculator.Tier(t.fromKm(), t.perKm())).toList();
+        var quote = PriceCalculator.finish(PriceCalculator.formula(rates, tiers, distanceM, durationS), vanPercent,
+                percent, extras);
+        return new Estimate(quote.price(), false, s.currency(), quote.lines());
     }
 
     @Override

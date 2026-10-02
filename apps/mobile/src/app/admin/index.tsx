@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDateTime, formatPrice } from '@/lib/format';
 import { useNow } from '@/lib/useNow';
 import { useRides } from '@/lib/useRides';
+import { fonts } from '@/lib/theme';
 
 type Filter = 'upcoming' | 'requests' | 'past' | 'all';
 const OPEN: RideStatus[] = ['requested', 'price_proposed', 'accepted'];
@@ -58,7 +59,7 @@ export default function AdminRides() {
           onChange={setFilter}
         />
         <View style={{ minWidth: 240, flex: 1 }}>
-          <Field label={t('search')} value={search} onChangeText={setSearch} />
+          <Field label={t('search')} value={search} onChangeText={setSearch} icon="search" clearable />
         </View>
       </Row>
       <ErrorText>{error ? err(error) : null}</ErrorText>
@@ -71,13 +72,13 @@ export default function AdminRides() {
 
       <Card style={{ padding: 0, gap: 0 }}>
         <Row style={[tableRow, { backgroundColor: colors.bg }]}>
-          <Text style={[cell, { flex: 1.3, fontWeight: '700' }]}>{t('when')}</Text>
-          <Text style={[cell, { flex: 1.2, fontWeight: '700' }]}>{t('customer')}</Text>
-          <Text style={[cell, { flex: 3, fontWeight: '700' }]}>
+          <Text style={[cell, { flex: 1.3, fontFamily: fonts.semibold }]}>{t('when')}</Text>
+          <Text style={[cell, { flex: 1.2, fontFamily: fonts.semibold }]}>{t('customer')}</Text>
+          <Text style={[cell, { flex: 3, fontFamily: fonts.semibold }]}>
             {t('from')} → {t('to')}
           </Text>
-          <Text style={[cell, { flex: 0.8, fontWeight: '700' }]}>{t('price')}</Text>
-          <Text style={[cell, { flex: 1, fontWeight: '700' }]}> </Text>
+          <Text style={[cell, { flex: 0.8, fontFamily: fonts.semibold }]}>{t('price')}</Text>
+          <Text style={[cell, { flex: 1, fontFamily: fonts.semibold }]}> </Text>
         </Row>
         {shown.map((r: Ride) => (
           <Pressable key={r.id} onPress={() => router.push({ pathname: '/admin/ride/[id]', params: { id: r.id } })}>

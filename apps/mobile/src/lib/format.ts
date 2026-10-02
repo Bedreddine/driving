@@ -89,3 +89,29 @@ export function fromWallClock(w: WallClock, tz = BUSINESS_TZ): string {
   guess = asUtc - offsetAt(guess);
   return new Date(guess).toISOString();
 }
+
+/** Evening from 19:00 to 07:00, Paris time: the client pages switch to the evening palette. */
+export function isEveningInParis(at: Date | number) {
+  const { hour } = toWallClock(new Date(at));
+  return hour >= 19 || hour < 7;
+}
+
+const TITLES = new Set(['mr', 'mrs', 'ms', 'miss', 'mme', 'm', 'mlle', 'dr', 'sir', 'madame', 'monsieur']);
+
+/** How a client appears publicly: "James Smith" → "J. Smith". Same rule as the server. */
+export function displayName(fullName: string | null | undefined): string {
+  const words = (fullName ?? '').trim().split(/\s+/).filter(Boolean);
+  while (words.length > 1 && TITLES.has(words[0].toLowerCase().replace(/\.$/, ''))) words.shift();
+  if (words.length === 0) return '';
+  if (words.length === 1) return words[0];
+  return `${words[0][0].toUpperCase()}. ${words[words.length - 1]}`;
+}
+
+/** "2026-09" → "septembre 2026" / "September 2026". */
+export function monthLabel(month: string, lang: Lang): string {
+  const [y, m] = month.split('-').map(Number);
+  if (!y || !m) return month;
+  return new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : 'fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(
+    new Date(Date.UTC(y, m - 1, 15)),
+  );
+}

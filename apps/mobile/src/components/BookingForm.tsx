@@ -7,6 +7,7 @@ import { formatKm, formatMinutes, formatPrice } from '@/lib/format';
 import { AddressInput } from './AddressInput';
 import { DateTimeField } from './DateTimeField';
 import { Button, Card, ErrorText, Field, Notice, Row, Stepper, styles, Toggle } from './ui';
+import { fonts } from '@/lib/theme';
 
 // Default pickup: 4 hours from now, rounded to the next quarter hour (respects the 3 h notice).
 function defaultPickup() {
@@ -128,7 +129,7 @@ export function BookingForm({ mode, from, extra, extraFields, canSubmit = true, 
             <Text style={styles.text}>
               {quote.is_fixed ? t('fixedPrice') : quote.licence === 'taxi' ? t('meterEstimate') : t('estimate')}
             </Text>
-            <Text style={[styles.text, { fontSize: 22, fontWeight: '800' }]}>
+            <Text style={[styles.text, { fontSize: 22, fontFamily: fonts.semibold }]}>
               {formatPrice(quote.estimate, quote.currency, lang)}
             </Text>
           </Row>

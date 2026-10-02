@@ -1,5 +1,7 @@
 package com.taxi.booking.internal;
 
+import com.taxi.booking.RideDirectory;
+import com.taxi.booking.RideReviews;
 import com.taxi.booking.internal.BookingModels.BookingResult;
 import com.taxi.booking.internal.BookingModels.RideInput;
 import com.taxi.pricing.Pricing;
@@ -15,8 +17,10 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -42,12 +46,22 @@ class PublicBookingController {
 
     record Answer(@NotNull Boolean accept) {}
 
-    /** What the guest sees on the private link: no internal ids, no driver notes. */
+    /**
+     * What the guest sees on the private link: no internal ids, no driver notes.
+     *
+     * @param canReview true once the ride is completed, while the review is not moderated yet
+     * @param review    the client's review of this ride, or null
+     * @param route     the road for the map as [lng, lat] points, or null when not known
+     */
     record PublicRide(String status, OffsetDateTime pickupAt, String pickupAddress, String dropoffAddress,
-                      int passengers, int luggage, String vehicle, boolean meetGreet, String travelRef,
+                      Point pickup, Point dropoff,
+                      int passengers, int luggage, int childSeats, String vehicle, boolean meetGreet, String travelRef,
                       String customerNotes, int distanceM, int durationS, String currency, boolean isFixedPrice,
                       BigDecimal estimatedPrice, BigDecimal proposedPrice, BigDecimal agreedPrice,
-                      BigDecimal finalPrice, OffsetDateTime answerDeadline, String cancelReason, String clientName) {}
+                      BigDecimal finalPrice, OffsetDateTime answerDeadline, String cancelReason, String clientName,
+                      boolean canReview, RideReviews.Review review, List<double[]> route) {}
+
+    record Point(double lat, double lng) {}
 
     private static final Duration HOUR = Duration.ofHours(1);
 
@@ -57,32 +71,44 @@ class PublicBookingController {
     private final ContactRepository contacts;
     private final DriverRepository drivers;
     private final Pricing pricing;
+    private final RideReviews reviews;
     private final RateLimiter limiter;
     private final int maxBookings;
     private final int maxQuotes;
+    private final DriverTracking tracking;
+    private final int maxTracking;
 
     PublicBookingController(BookingService booking, RideLifecycle lifecycle, RideRepository rides,
-                            ContactRepository contacts, DriverRepository drivers, Pricing pricing, RateLimiter limiter,
+                            ContactRepository contacts, DriverRepository drivers, Pricing pricing, RideReviews reviews,
+                            RateLimiter limiter,
                             @Value("${taxi.public.max-bookings-per-hour:10}") int maxBookings,
-                            @Value("${taxi.public.max-quotes-per-hour:60}") int maxQuotes) {
+                            @Value("${taxi.public.max-quotes-per-hour:60}") int maxQuotes,
+                            DriverTracking tracking,
+                            @Value("${taxi.public.max-tracking-per-minute:60}") int maxTracking) {
         this.booking = booking;
         this.lifecycle = lifecycle;
         this.rides = rides;
         this.contacts = contacts;
         this.drivers = drivers;
         this.pricing = pricing;
+        this.reviews = reviews;
         this.limiter = limiter;
         this.maxBookings = maxBookings;
         this.maxQuotes = maxQuotes;
+        this.tracking = tracking;
+        this.maxTracking = maxTracking;
     }
 
-    /** Vehicle capacity, phone for short-notice calls, licence (VTC shows a price, taxi an estimate). */
+    /**
+     * Vehicle capacity, phone for short-notice calls, licence (VTC shows a price, taxi an estimate), and the prices
+     * of the options (meet & greet, child seats, extra luggage, waiting).
+     */
     @GetMapping("/api/public/driver")
     DriverController.DriverInfo driver() {
         var d = drivers.defaultDriver().orElseThrow(() -> ApiException.badRequest("NO_DRIVER"));
         var policy = pricing.policy(d.id());
         return new DriverController.DriverInfo(d.id(), d.displayName(), d.phone(), d.seats(), d.luggage(), d.vehicle(),
-                d.timezone(), policy.licence().value(), policy.currency());
+                d.timezone(), policy.licence().value(), policy.currency(), pricing.extras(d.id()));
     }
 
     /** Price check (dry_run) or real booking request. */
@@ -107,10 +133,24 @@ class PublicBookingController {
     PublicRide get(@PathVariable String token) {
         var r = rides.byAccessToken(token).orElseThrow(ApiException::notFound);
         var clientName = contacts.find(r.contactId()).map(ContactRepository.Contact::fullName).orElse(null);
-        return new PublicRide(r.status(), r.pickupAt(), r.pickupAddress(), r.dropoffAddress(), r.passengers(),
-                r.luggage(), r.vehicle(), r.meetGreet(), r.travelRef(), r.customerNotes(), r.distanceM(),
+        var reviewing = reviews.of(new RideDirectory.RideFacts(r.id(), r.status(), r.pickupAt(), clientName,
+                contacts.isAnonymized(r.contactId())));
+        return new PublicRide(r.status(), r.pickupAt(), r.pickupAddress(), r.dropoffAddress(),
+                new Point(r.pickupLat(), r.pickupLng()), new Point(r.dropoffLat(), r.dropoffLng()), r.passengers(),
+                r.luggage(), r.childSeats(), r.vehicle(), r.meetGreet(), r.travelRef(), r.customerNotes(), r.distanceM(),
                 r.durationS(), r.currency(), r.isFixedPrice(), r.estimatedPrice(), r.proposedPrice(),
-                r.agreedPrice(), r.finalPrice(), r.answerDeadline(), r.cancelReason(), clientName);
+                r.agreedPrice(), r.finalPrice(), r.answerDeadline(), r.cancelReason(), clientName,
+                reviewing.canReview(), reviewing.review(), rides.route(r.id()));
+    }
+
+    /** Where the driver is (the page polls every few seconds); 204 when it must not or cannot be shown. */
+    @GetMapping("/api/public/bookings/{token}/driver")
+    ResponseEntity<DriverTracking.DriverLocation> driverLocation(@PathVariable String token, HttpServletRequest request) {
+        if (!limiter.allow("track:" + request.getRemoteAddr(), maxTracking, Duration.ofMinutes(1))) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_REQUESTS");
+        }
+        var r = rides.byAccessToken(token).orElseThrow(ApiException::notFound);
+        return tracking.forRide(r).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @PostMapping("/api/public/bookings/{token}/respond")

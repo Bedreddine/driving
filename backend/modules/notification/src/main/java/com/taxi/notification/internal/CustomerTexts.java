@@ -31,7 +31,11 @@ final class CustomerTexts {
                 .append(en ? "Pickup: " : "Départ : ").append(when).append("\n")
                 .append(en ? "From: " : "De : ").append(trip.pickupAddress()).append("\n")
                 .append(en ? "To: " : "À : ").append(trip.dropoffAddress()).append("\n");
-        if (link != null) {
+        if (link != null && "ride_completed".equals(kind)) {
+            // Same private link: the ride page lets the client leave a review once the ride is completed.
+            body.append("\n").append(en ? "How was your ride? Leave us a review: " : "Votre avis compte : laissez-nous un avis sur votre course : ")
+                    .append(link).append("\n");
+        } else if (link != null) {
             body.append("\n").append(en ? "Follow or manage your ride: " : "Suivre ou gérer votre course : ").append(link).append("\n");
         }
         if (business.phone() != null) {

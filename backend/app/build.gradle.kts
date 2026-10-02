@@ -8,6 +8,7 @@ dependencies {
     implementation(project(":modules:identity"))
     implementation(project(":modules:pricing"))
     implementation(project(":modules:booking"))
+    implementation(project(":modules:review"))
     implementation(project(":modules:notification"))
 
     implementation("org.springframework.boot:spring-boot-starter-actuator")

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -6,44 +6,45 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
-  TextInput,
   View,
   type StyleProp,
-  type TextInputProps,
+  type TextStyle,
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Icon, type IconName } from './controls';
+import { fonts, night, tabular, useTheme } from '@/lib/theme';
 
+/** The night palette under the names the driver and back-office screens use (DESIGN.md › Colors). */
 export const colors = {
-  bg: '#F6F6F4',
-  card: '#FFFFFF',
-  text: '#1B1B1F',
-  muted: '#6B6B73',
-  border: '#E2E2E0',
-  primary: '#1F3A5F',
-  primaryText: '#FFFFFF',
-  accent: '#F2B705',
-  danger: '#B3261E',
-  success: '#1E7B3A',
-  warning: '#8A5A00',
-  // Premium booking website
-  night: '#0E0E10',
-  gold: '#C8A96A',
-  goldDark: '#A88B4F',
+  bg: night.paper,
+  card: night.surface,
+  text: night.text,
+  muted: night.muted,
+  border: night.rule,
+  primary: night.primary,
+  primaryText: night.onPrimary,
+  danger: night.error,
+  raised: night.raised,
+  success: night.success,
+  warning: night.warning,
 };
 
-/** Serif display font for the premium booking website. */
-export const serif = Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia, "Times New Roman", serif' });
+export { fonts };
+export { ArrowRight, Button, ClearButton, Field, FieldShell, fieldInputStyle, Icon, Stepper, Toggle, type IconName } from './controls';
 
 /**
  * Page frame: safe areas (notch, home bar), keyboard that never covers the focused field, scrolling.
  * `top`: also keep clear of the status bar / notch, for screens without a navigation header.
  */
 export function Screen({ children, scroll = true, top = false }: { children: ReactNode; scroll?: boolean; top?: boolean }) {
+  const theme = useTheme();
   return (
-    <SafeAreaView style={styles.safe} edges={top ? ['top', 'bottom', 'left', 'right'] : ['bottom', 'left', 'right']}>
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: theme.paper }]}
+      edges={top ? ['top', 'bottom', 'left', 'right'] : ['bottom', 'left', 'right']}
+    >
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {scroll ? (
           <ScrollView
@@ -62,128 +63,114 @@ export function Screen({ children, scroll = true, top = false }: { children: Rea
 }
 
 export function Title({ children }: { children: ReactNode }) {
-  return <Text style={styles.title}>{children}</Text>;
+  const theme = useTheme();
+  return (
+    <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+      {children}
+    </Text>
+  );
 }
 
 export function Label({ children }: { children: ReactNode }) {
-  return <Text style={styles.label}>{children}</Text>;
+  const theme = useTheme();
+  return <Text style={[styles.label, { color: theme.muted }]}>{children}</Text>;
 }
 
-export function Muted({ children, style }: { children: ReactNode; style?: object }) {
-  return <Text style={[styles.muted, style]}>{children}</Text>;
+/** Body text in the current palette. */
+export function Body({ children, style }: { children: ReactNode; style?: StyleProp<TextStyle> }) {
+  const theme = useTheme();
+  return <Text style={[styles.text, { color: theme.text }, style]}>{children}</Text>;
+}
+
+/** Numbers the client compares (price, time, flight): JetBrains Mono, tabular. */
+export function Mono({ children, style }: { children: ReactNode; style?: StyleProp<TextStyle> }) {
+  const theme = useTheme();
+  return <Text style={[styles.mono, { color: theme.text }, style]}>{children}</Text>;
+}
+
+export function Muted({ children, style }: { children: ReactNode; style?: StyleProp<TextStyle> }) {
+  const theme = useTheme();
+  return <Text style={[styles.muted, { color: theme.muted }, style]}>{children}</Text>;
 }
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <View style={[styles.card, style]}>{children}</View>;
+  const theme = useTheme();
+  return <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.rule }, style]}>{children}</View>;
+}
+
+/** The heading of a back-office card: icon, title, and an optional line of help under it. */
+export function CardTitle({ icon, children, help, right }: { icon?: IconName; children: ReactNode; help?: ReactNode; right?: ReactNode }) {
+  const theme = useTheme();
+  return (
+    <View style={{ gap: 4, marginBottom: 6 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        {icon ? (
+          <View style={{ width: 32, height: 32, borderRadius: 3, borderWidth: 1, borderColor: theme.rule, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name={icon} size={16} color={theme.primary} />
+          </View>
+        ) : null}
+        <Text accessibilityRole="header" style={{ flex: 1, fontFamily: fonts.bold, fontSize: 17, color: theme.text }}>
+          {children}
+        </Text>
+        {right}
+      </View>
+      {help ? <Text style={{ fontFamily: fonts.body, fontSize: 13.5, lineHeight: 19, color: theme.muted }}>{help}</Text> : null}
+    </View>
+  );
 }
 
 export function Row({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   return <View style={[styles.row, style]}>{children}</View>;
 }
 
-type ButtonProps = {
-  title: string;
-  onPress: () => void;
-  kind?: 'primary' | 'secondary' | 'danger' | 'gold';
-  disabled?: boolean;
-  loading?: boolean;
-  style?: ViewStyle;
-};
-
-export function Button({ title, onPress, kind = 'primary', disabled, loading, style }: ButtonProps) {
-  const bg =
-    kind === 'primary' ? colors.primary : kind === 'danger' ? colors.danger : kind === 'gold' ? colors.gold : colors.card;
-  const fg = kind === 'secondary' ? colors.primary : kind === 'gold' ? colors.night : colors.primaryText;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      disabled={disabled || loading}
-      style={({ pressed }) => [
-        styles.button,
-        { backgroundColor: bg, opacity: disabled ? 0.5 : pressed ? 0.8 : 1 },
-        kind === 'secondary' && { borderWidth: 1, borderColor: colors.primary },
-        style,
-      ]}
-    >
-      {loading ? <ActivityIndicator color={fg} /> : <Text style={[styles.buttonText, { color: fg }]}>{title}</Text>}
-    </Pressable>
-  );
-}
-
-export function Field({ label, ...props }: TextInputProps & { label: string }) {
-  return (
-    <View style={styles.field}>
-      <Label>{label}</Label>
-      <TextInput placeholderTextColor={colors.muted} style={styles.input} accessibilityLabel={label} {...props} />
-    </View>
-  );
-}
-
-export function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <Row style={{ justifyContent: 'space-between', marginVertical: 6 }}>
-      <Text style={[styles.text, { flex: 1 }]}>{label}</Text>
-      <Switch value={value} onValueChange={onChange} accessibilityLabel={label} />
-    </Row>
-  );
-}
-
-/** + / - counter for passengers and luggage. */
-export function Stepper({ label, value, min = 0, max, onChange }: { label: string; value: number; min?: number; max: number; onChange: (v: number) => void }) {
-  return (
-    <Row style={{ justifyContent: 'space-between', marginVertical: 6 }}>
-      <Text style={styles.text}>{label}</Text>
-      <Row style={{ gap: 12 }}>
-        <Pressable accessibilityLabel={`${label} -`} onPress={() => onChange(Math.max(min, value - 1))} style={styles.stepBtn}>
-          <Text style={styles.stepText}>−</Text>
-        </Pressable>
-        <Text style={[styles.text, { minWidth: 24, textAlign: 'center' }]}>{value}</Text>
-        <Pressable accessibilityLabel={`${label} +`} onPress={() => onChange(Math.min(max, value + 1))} style={styles.stepBtn}>
-          <Text style={styles.stepText}>+</Text>
-        </Pressable>
-      </Row>
-    </Row>
-  );
-}
-
 /** A small choice between a few options (vehicle, source, language...). */
 export function Segmented<T extends string>({ options, value, onChange }: { options: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+  const theme = useTheme();
   return (
     <Row style={styles.segmented}>
-      {options.map((o) => (
-        <Pressable
-          key={o.value}
-          accessibilityRole="button"
-          accessibilityState={{ selected: o.value === value }}
-          onPress={() => onChange(o.value)}
-          style={[styles.segment, o.value === value && { backgroundColor: colors.primary }]}
-        >
-          <Text style={{ color: o.value === value ? colors.primaryText : colors.text, fontWeight: '600' }}>{o.label}</Text>
-        </Pressable>
-      ))}
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <Pressable
+            key={o.value}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            onPress={() => onChange(o.value)}
+            style={[
+              styles.segment,
+              { borderColor: on ? theme.primary : theme.rule, backgroundColor: on ? theme.primary : theme.surface },
+            ]}
+          >
+            <Text style={{ color: on ? theme.onPrimary : theme.text, fontFamily: fonts.medium }}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
     </Row>
   );
 }
 
 export function ErrorText({ children }: { children: ReactNode }) {
+  const theme = useTheme();
   if (!children) return null;
-  return <Text style={styles.error}>{children}</Text>;
+  return <Text style={[styles.error, { color: theme.error }]}>{children}</Text>;
 }
 
-export function Notice({ children, tone = 'info' }: { children: ReactNode; tone?: 'info' | 'success' | 'warning' }) {
-  const color = tone === 'success' ? colors.success : tone === 'warning' ? colors.warning : colors.primary;
+export function Notice({ children, tone = 'info' }: { children: ReactNode; tone?: 'info' | 'success' | 'warning' | 'error' }) {
+  const theme = useTheme();
+  const color =
+    tone === 'success' ? theme.success : tone === 'warning' ? theme.warning : tone === 'error' ? theme.error : theme.primary;
   return (
-    <View style={[styles.notice, { borderLeftColor: color }]}>
+    <View style={[styles.notice, { backgroundColor: theme.surface, borderColor: theme.rule }]}>
       <Text style={[styles.text, { color }]}>{children}</Text>
     </View>
   );
 }
 
 export function Loading() {
+  const theme = useTheme();
   return (
     <View style={{ padding: 32, alignItems: 'center' }}>
-      <ActivityIndicator color={colors.primary} />
+      <ActivityIndicator color={theme.primary} />
     </View>
   );
 }
@@ -192,29 +179,36 @@ export const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, flexGrow: 1 },
   inner: { width: '100%', maxWidth: 720, alignSelf: 'center', gap: 12 },
-  title: { fontSize: 24, fontWeight: '700', color: colors.text, marginBottom: 4 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.muted, marginBottom: 4, textTransform: 'uppercase' },
-  text: { fontSize: 16, color: colors.text },
-  muted: { fontSize: 14, color: colors.muted },
-  card: { backgroundColor: colors.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, gap: 6 },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  button: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: 48 },
-  buttonText: { fontSize: 16, fontWeight: '700' },
-  field: { marginVertical: 4 },
-  input: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: colors.text,
+  title: { fontFamily: fonts.display, fontSize: 32, lineHeight: 36, color: colors.text, marginBottom: 4 },
+  label: {
+    fontFamily: fonts.monoMedium,
+    fontSize: 11,
+    letterSpacing: 0.66,
+    color: colors.muted,
+    marginBottom: 2,
+    textTransform: 'uppercase',
   },
-  stepBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },
-  stepText: { fontSize: 20, color: colors.primary, fontWeight: '700' },
+  text: { fontFamily: fonts.body, fontSize: 16, lineHeight: 24, color: colors.text },
+  mono: { fontFamily: fonts.mono, ...tabular },
+  muted: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.muted },
+  card: { backgroundColor: colors.card, borderRadius: 3, padding: 16, borderWidth: 1, borderColor: colors.border, gap: 6 },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  button: { paddingVertical: 16, paddingHorizontal: 18, borderRadius: 3, alignItems: 'center', justifyContent: 'center', minHeight: 50 },
+  buttonText: { fontFamily: fonts.bold, fontSize: 16, letterSpacing: 0.2 },
+  field: { marginVertical: 6 },
+  input: {
+    paddingHorizontal: 0,
+    paddingTop: 6,
+    paddingBottom: 8,
+    fontFamily: fonts.body,
+    fontSize: 17,
+    color: colors.text,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' as never } : {}),
+  },
+  stepBtn: { width: 38, height: 38, borderRadius: 3, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },
+  stepText: { fontSize: 20, color: colors.primary, fontFamily: fonts.medium },
   segmented: { gap: 8, flexWrap: 'wrap' },
-  segment: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
-  error: { color: colors.danger, fontSize: 15 },
-  notice: { backgroundColor: colors.card, borderLeftWidth: 4, padding: 12, borderRadius: 8 },
+  segment: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 3, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  error: { fontFamily: fonts.body, color: colors.danger, fontSize: 15, lineHeight: 21 },
+  notice: { borderWidth: 1, padding: 12, borderRadius: 3 },
 });
