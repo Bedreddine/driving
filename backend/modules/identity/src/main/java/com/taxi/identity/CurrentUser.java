@@ -1,9 +1,11 @@
 package com.taxi.identity;
 
 import com.taxi.shared.ApiException;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -24,6 +26,15 @@ public class CurrentUser {
                 .collect(Collectors.toUnmodifiableSet());
     }
 
+    /** The signed-in user, or empty for anonymous visitors (public booking website). */
+    public Optional<UUID> idIfSignedIn() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            return Optional.empty();
+        }
+        return Optional.of(UUID.fromString(auth.getName()));
+    }
+
     public boolean isAdmin() {
         return roles().contains(Role.ADMIN);
     }
@@ -36,7 +47,8 @@ public class CurrentUser {
 
     private Authentication authentication() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth.getName() == null) {
+        if (auth == null || !auth.isAuthenticated() || auth.getName() == null
+                || auth instanceof AnonymousAuthenticationToken) {
             throw new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED");
         }
         return auth;

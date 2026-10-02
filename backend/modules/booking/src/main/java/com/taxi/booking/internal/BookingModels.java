@@ -69,5 +69,6 @@ final class BookingModels {
             UUID clashRideId,
             Integer distanceM,
             Integer durationS,
-            boolean routeEstimated) {}
+            boolean routeEstimated,
+            String accessToken) {}
 }

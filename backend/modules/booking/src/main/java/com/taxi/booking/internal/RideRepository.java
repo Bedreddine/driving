@@ -25,7 +25,7 @@ class RideRepository {
                    double dropoffLng, int distanceM, int durationS, int pickupAllowanceMin, Instant blockedUntil,
                    int passengers, int luggage, String vehicle, boolean meetGreet, String travelRef,
                    String customerNotes, String currency, boolean isFixedPrice, BigDecimal estimatedPrice,
-                   BigDecimal agreedPrice, Instant answerDeadline) {}
+                   BigDecimal agreedPrice, Instant answerDeadline, String accessToken) {}
 
     static final Duration NEIGHBOUR_WINDOW = Duration.ofHours(12);
     private static final String HOLDING = "('accepted', 'price_proposed')";
@@ -41,6 +41,11 @@ class RideRepository {
                 .query(Ride.class).optional();
     }
 
+    Optional<Ride> byAccessToken(String token) {
+        return jdbc.sql("select " + Ride.COLUMNS + " from rides where access_token = :t").param("t", token)
+                .query(Ride.class).optional();
+    }
+
     Optional<Ride> lock(UUID id) {
         return jdbc.sql("select " + Ride.COLUMNS + " from rides where id = :id for update").param("id", id)
                 .query(Ride.class).optional();
@@ -51,12 +56,12 @@ class RideRepository {
                 insert into rides (contact_id, driver_id, created_by, source, status, pickup_at, pickup_address,
                   pickup_lat, pickup_lng, dropoff_address, dropoff_lat, dropoff_lng, distance_m, duration_s,
                   pickup_allowance_min, blocked_range, passengers, luggage, vehicle, meet_greet, travel_ref,
-                  customer_notes, currency, is_fixed_price, estimated_price, agreed_price, answer_deadline)
+                  customer_notes, currency, is_fixed_price, estimated_price, agreed_price, answer_deadline, access_token)
                 values (:contactId, :driverId, :createdBy, :source, :status, :pickupAt, :pickupAddress,
                   :pickupLat, :pickupLng, :dropoffAddress, :dropoffLat, :dropoffLng, :distanceM, :durationS,
                   :pickupAllowanceMin, tstzrange(:pickupAt, :blockedUntil), :passengers, :luggage, :vehicle,
                   :meetGreet, :travelRef, :customerNotes, :currency, :isFixedPrice, :estimatedPrice, :agreedPrice,
-                  :answerDeadline)
+                  :answerDeadline, :accessToken)
                 returning id""")
                 .param("contactId", r.contactId()).param("driverId", r.driverId()).param("createdBy", r.createdBy())
                 .param("source", r.source()).param("status", r.status().value()).param("pickupAt", utc(r.pickupAt()))
@@ -71,6 +76,7 @@ class RideRepository {
                 .param("isFixedPrice", r.isFixedPrice()).param("estimatedPrice", r.estimatedPrice())
                 .param("agreedPrice", r.agreedPrice())
                 .param("answerDeadline", r.answerDeadline() == null ? null : utc(r.answerDeadline()))
+                .param("accessToken", r.accessToken())
                 .query(UUID.class).single();
     }
 

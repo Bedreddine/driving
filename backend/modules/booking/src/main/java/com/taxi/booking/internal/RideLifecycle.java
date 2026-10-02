@@ -101,6 +101,17 @@ class RideLifecycle {
     public void respondToPrice(UUID rideId, boolean accept) {
         var r = accept ? loadForSlotChange(rideId) : load(rideId);
         requireCustomer(r);
+        respond(r, accept);
+    }
+
+    /** Guest answering from the private link of the ride (no account). */
+    @Transactional
+    public void respondAsGuest(String accessToken, boolean accept) {
+        var id = byToken(accessToken).id();
+        respond(accept ? loadForSlotChange(id) : load(id), accept);
+    }
+
+    private void respond(Ride r, boolean accept) {
         requireStatus(r, PRICE_PROPOSED);
         requireOpenDeadline(r);
         if (accept) {
@@ -116,9 +127,7 @@ class RideLifecycle {
     public void cancel(UUID rideId, String reason) {
         var r = load(rideId);
         if (isCustomer(r)) {
-            requireStatus(r, REQUESTED, PRICE_PROPOSED, ACCEPTED);
-            change(r, CANCELLED, cols("cancel_reason", blankToNull(reason), "answer_deadline", null), reason);
-            notices.about(r).tellDriver("ride_cancelled_by_customer").publish();
+            cancelByCustomer(r, reason);
             return;
         }
         requireStaff(r);
@@ -128,6 +137,18 @@ class RideLifecycle {
         }
         change(r, CANCELLED, cols("cancel_reason", reason.trim(), "answer_deadline", null), reason);
         notices.about(r).tellCustomer("ride_cancelled_by_driver", Map.of("reason", reason.trim())).publish();
+    }
+
+    /** Guest cancelling from the private link of the ride (no account). */
+    @Transactional
+    public void cancelAsGuest(String accessToken) {
+        cancelByCustomer(load(byToken(accessToken).id()), null);
+    }
+
+    private void cancelByCustomer(Ride r, String reason) {
+        requireStatus(r, REQUESTED, PRICE_PROPOSED, ACCEPTED);
+        change(r, CANCELLED, cols("cancel_reason", blankToNull(reason), "answer_deadline", null), reason);
+        notices.about(r).tellDriver("ride_cancelled_by_customer").tellCustomer("ride_cancelled_confirmation").publish();
     }
 
     @Transactional
@@ -213,6 +234,13 @@ class RideLifecycle {
 
     // ------------------------------------------------------------------ helpers
 
+    private Ride byToken(String accessToken) {
+        if (accessToken == null || accessToken.length() < 32) {
+            throw ApiException.notFound();
+        }
+        return rides.byAccessToken(accessToken).orElseThrow(ApiException::notFound);
+    }
+
     private Ride load(UUID id) {
         return rides.lock(id).orElseThrow(ApiException::notFound);
     }
@@ -240,7 +268,7 @@ class RideLifecycle {
             }
             throw e;
         }
-        rides.logEvent(r.id(), r.rideStatus(), to, currentUser.id(), blankToNull(note));
+        rides.logEvent(r.id(), r.rideStatus(), to, currentUser.idIfSignedIn().orElse(null), blankToNull(note));
     }
 
     private void requireStaff(Ride r) {
@@ -254,7 +282,8 @@ class RideLifecycle {
     }
 
     private boolean isCustomer(Ride r) {
-        return contacts.find(r.contactId()).map(c -> currentUser.id().equals(c.userId())).orElse(false);
+        var me = currentUser.idIfSignedIn().orElse(null);
+        return me != null && contacts.find(r.contactId()).map(c -> me.equals(c.userId())).orElse(false);
     }
 
     private void requireCustomer(Ride r) {

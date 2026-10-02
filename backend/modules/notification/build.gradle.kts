@@ -5,5 +5,6 @@ dependencies {
     implementation(project(":modules:booking"))
     implementation("org.springframework.boot:spring-boot-starter-websocket")
     implementation("org.springframework.boot:spring-boot-starter-restclient") // Expo push
+    implementation("org.springframework.boot:spring-boot-starter-mail") // customer emails (any SMTP server)
     implementation("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server")
 }

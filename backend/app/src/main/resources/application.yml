@@ -10,6 +10,14 @@ spring:
     password: ${DATABASE_PASSWORD:taxi}
   flyway:
     locations: classpath:db/migration
+  mail:
+    # Customer emails go through any SMTP server, set with environment variables:
+    # SPRING_MAIL_HOST, SPRING_MAIL_PORT, SPRING_MAIL_USERNAME, SPRING_MAIL_PASSWORD.
+    # Without SPRING_MAIL_HOST, emails are only written to the log.
+    port: 587
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
   docker:
     compose:
       # `./gradlew :app:bootRun` starts PostgreSQL from app/compose.yaml automatically (development only).
@@ -18,6 +26,9 @@ spring:
 server:
   port: ${PORT:8080}
   shutdown: graceful
+  # Behind a reverse proxy (production), read the visitor's IP from X-Forwarded-For (used by the booking limits).
+  # Only safe when the proxy is the only way in.
+  forward-headers-strategy: ${FORWARD_HEADERS:native}
 
 taxi:
   security:
@@ -31,6 +42,17 @@ taxi:
     osrm-url: ${OSRM_URL:https://router.project-osrm.org}
   push:
     enabled: ${PUSH_ENABLED:true}
+  mail:
+    # Sender address of customer emails (the SMTP server is set with SPRING_MAIL_*, see spring.mail above).
+    from: ${MAIL_FROM:no-reply@localhost}
+    reply-to: ${MAIL_REPLY_TO:}
+  public:
+    # Booking website (QR code) limits per visitor IP and per hour, against spam.
+    max-bookings-per-hour: 10
+    max-quotes-per-hour: 60
+  sms:
+    # SMS always costs money per message. Off until a provider is chosen (texts are only logged).
+    enabled: ${SMS_ENABLED:false}
 
 management:
   endpoints:

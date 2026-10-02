@@ -32,6 +32,8 @@ import tools.jackson.databind.json.JsonMapper;
         "taxi.security.jwt-secret=integration-test-secret-0123456789abcdef",
         "taxi.scheduling.enabled=false",
         "taxi.push.enabled=false",
+        "taxi.public.max-bookings-per-hour=1000",
+        "taxi.public.max-quotes-per-hour=1000",
 })
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
@@ -61,7 +63,9 @@ public abstract class IntegrationTest {
         jdbc.sql("""
                 truncate notifications, push_tokens, ride_events, rides, contact_notes, contacts, time_off,
                   working_hours, surcharges, fixed_prices, zones, pricing_settings, drivers, refresh_tokens,
-                  user_roles, users cascade""").update();
+                  user_roles, users, customer_messages cascade""").update();
+        jdbc.sql("delete from business_profile").update();
+        jdbc.sql("insert into business_profile default values").update();
 
         jdbc.sql("insert into drivers (id, display_name, phone) values (:id, 'My Taxi', '+33600000000')")
                 .param("id", DRIVER).update();

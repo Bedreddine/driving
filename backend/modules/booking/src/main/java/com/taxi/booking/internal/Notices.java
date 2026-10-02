@@ -19,56 +19,65 @@ class Notices {
     private final ApplicationEventPublisher events;
     private final ContactRepository contacts;
     private final DriverRepository drivers;
+    private final RideRepository rides;
 
-    Notices(ApplicationEventPublisher events, ContactRepository contacts, DriverRepository drivers) {
+    Notices(ApplicationEventPublisher events, ContactRepository contacts, DriverRepository drivers, RideRepository rides) {
         this.events = events;
         this.contacts = contacts;
         this.drivers = drivers;
+        this.rides = rides;
     }
 
-    Change about(UUID rideId, UUID contactId, UUID driverId) {
-        var customer = contacts.find(contactId).map(ContactRepository.Contact::userId).orElse(null);
-        var driver = drivers.find(driverId).map(DriverRepository.Driver::userId).orElse(null);
-        return new Change(rideId, customer, driver);
+    Change about(UUID rideId) {
+        return about(rides.find(rideId).orElseThrow());
     }
 
     Change about(Ride ride) {
-        return about(ride.id(), ride.contactId(), ride.driverId());
+        var contact = contacts.find(ride.contactId()).orElseThrow();
+        var driver = drivers.find(ride.driverId()).map(DriverRepository.Driver::userId).orElse(null);
+        var customer = new RideChanged.Customer(contact.fullName(), contact.email(), contact.phone(), contact.language());
+        var trip = new RideChanged.Trip(ride.pickup(), ride.pickupAddress(), ride.dropoffAddress(), ride.currency(),
+                ride.accessToken());
+        return new Change(ride.id(), contact.userId(), driver, customer, trip);
     }
 
     final class Change {
         private final UUID rideId;
-        private final UUID customer;
-        private final UUID driver;
+        private final UUID customerUser;
+        private final UUID driverUser;
+        private final RideChanged.Customer customer;
+        private final RideChanged.Trip trip;
         private final List<Notice> notices = new ArrayList<>();
 
-        private Change(UUID rideId, UUID customer, UUID driver) {
+        private Change(UUID rideId, UUID customerUser, UUID driverUser, RideChanged.Customer customer,
+                       RideChanged.Trip trip) {
             this.rideId = rideId;
+            this.customerUser = customerUser;
+            this.driverUser = driverUser;
             this.customer = customer;
-            this.driver = driver;
+            this.trip = trip;
         }
 
         Change tellCustomer(String kind) {
             return tellCustomer(kind, Map.of());
         }
 
+        /** In the app if the customer has an account; by email / SMS in every case. */
         Change tellCustomer(String kind, Map<String, Object> payload) {
-            if (customer != null) {
-                notices.add(new Notice(customer, kind, payload));
-            }
+            notices.add(new Notice(customerUser, kind, payload, true));
             return this;
         }
 
         Change tellDriver(String kind) {
-            if (driver != null) {
-                notices.add(new Notice(driver, kind, Map.of()));
+            if (driverUser != null) {
+                notices.add(new Notice(driverUser, kind, Map.of(), false));
             }
             return this;
         }
 
         /** Publishes even without notices, so open screens still refresh. */
         void publish() {
-            events.publishEvent(new RideChanged(rideId, customer, driver, List.copyOf(notices)));
+            events.publishEvent(new RideChanged(rideId, customerUser, driverUser, List.copyOf(notices), customer, trip));
         }
     }
 }

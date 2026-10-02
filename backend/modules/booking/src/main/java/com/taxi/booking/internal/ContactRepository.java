@@ -10,13 +10,13 @@ import org.springframework.stereotype.Repository;
 class ContactRepository {
 
     record Contact(UUID id, UUID userId, String fullName, String phone, String email, boolean noticeGiven,
-                   UUID createdBy) {}
+                   UUID createdBy, String language) {}
 
     record LinkSuggestion(UUID accountContactId, UUID existingContactId, String match) {}
 
-    private static final String COLUMNS = "id, user_id, full_name, phone, email, notice_given, created_by";
+    private static final String COLUMNS = "id, user_id, full_name, phone, email, notice_given, created_by, language";
     private static final String PREFIXED_COLUMNS =
-            "c.id, c.user_id, c.full_name, c.phone, c.email, c.notice_given, c.created_by";
+            "c.id, c.user_id, c.full_name, c.phone, c.email, c.notice_given, c.created_by, c.language";
 
     private final JdbcClient jdbc;
 
@@ -43,12 +43,35 @@ class ContactRepository {
     }
 
     UUID insert(UUID userId, String fullName, String phone, String email, boolean noticeGiven, UUID createdBy) {
+        return insert(userId, fullName, phone, email, noticeGiven, createdBy, "fr");
+    }
+
+    UUID insert(UUID userId, String fullName, String phone, String email, boolean noticeGiven, UUID createdBy,
+                String language) {
         return jdbc.sql("""
-                insert into contacts (user_id, full_name, phone, email, notice_given, created_by)
-                values (:u, :n, :p, :e, :notice, :by) returning id""")
+                insert into contacts (user_id, full_name, phone, email, notice_given, created_by, language)
+                values (:u, :n, :p, :e, :notice, :by, :lang) returning id""")
                 .param("u", userId).param("n", fullName).param("p", phone).param("e", email)
-                .param("notice", noticeGiven).param("by", createdBy)
+                .param("notice", noticeGiven).param("by", createdBy).param("lang", language)
                 .query(UUID.class).single();
+    }
+
+    /**
+     * A guest who books again with the same email and phone reuses their contact (one history).
+     * Contacts that belong to an account are never reused this way.
+     */
+    Optional<Contact> guestMatch(String email, String phone) {
+        if (email == null || phone == null) {
+            return Optional.empty();
+        }
+        return jdbc.sql("select " + COLUMNS + " from contacts where user_id is null and anonymized_at is null"
+                        + " and lower(email) = lower(:e) and phone = :p order by created_at limit 1")
+                .param("e", email).param("p", phone).query(Contact.class).optional();
+    }
+
+    void updateGuestDetails(UUID id, String fullName, String language) {
+        jdbc.sql("update contacts set full_name = :n, language = :l, updated_at = now() where id = :id")
+                .param("n", fullName).param("l", language).param("id", id).update();
     }
 
     /**

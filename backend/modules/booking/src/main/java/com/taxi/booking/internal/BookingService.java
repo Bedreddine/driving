@@ -10,6 +10,7 @@ import com.taxi.pricing.Pricing;
 import com.taxi.pricing.PricingPolicy.Licence;
 import com.taxi.shared.ApiException;
 import com.taxi.shared.GeoPoint;
+import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -23,7 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Customer requests and driver quick-adds.
+ * Bookings by signed-in customers, guests (business-card QR code, no account) and driver quick-adds.
  * 1. Outside the transaction: road times for the ride and to/from the neighbouring rides (slow HTTP calls).
  * 2. In the transaction, with the driver row locked: all checks, the price, then the insert.
  *    If the neighbouring rides changed in between, the customer is asked to retry (AVAILABILITY_CHANGED).
@@ -54,9 +55,29 @@ class BookingService {
         this.clock = clock;
     }
 
+    /** Who is booking: a signed-in account (customer or staff) or a guest from the booking website. */
+    sealed interface Booker permits Account, Guest {}
+
+    record Account(UUID userId, boolean admin, boolean staff) implements Booker {}
+
+    record Guest(String fullName, String phone, String email, String language) implements Booker {}
+
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /** Signed-in customer request, or driver quick-add. */
     BookingResult book(RideInput in, boolean dryRun, boolean override) {
-        var actor = currentUser.id();
-        var admin = currentUser.isAdmin();
+        return book(new Account(currentUser.id(), currentUser.isAdmin(), currentUser.isStaff()), in, dryRun, override);
+    }
+
+    /** Guest request from the public booking website. Guests cannot quick-add nor override warnings. */
+    BookingResult bookAsGuest(Guest guest, RideInput in, boolean dryRun) {
+        if (in.quickAdd()) {
+            throw ApiException.forbidden();
+        }
+        return book(guest, in, dryRun, false);
+    }
+
+    private BookingResult book(Booker booker, RideInput in, boolean dryRun, boolean override) {
         var driver = drivers.defaultDriver().orElseThrow(() -> ApiException.badRequest("NO_DRIVER"));
         var pickup = new GeoPoint(in.pickup().lat(), in.pickup().lng());
         var dropoff = new GeoPoint(in.dropoff().lat(), in.dropoff().lng());
@@ -68,7 +89,7 @@ class BookingService {
         var toNext = nb.next() == null ? null : routing.route(dropoff, point(nb.next()));
 
         try {
-            return tx.execute(status -> decide(actor, admin, driver.id(), in, main, nb, fromPrev, toNext, dryRun, override));
+            return tx.execute(status -> decide(booker, driver.id(), in, main, nb, fromPrev, toNext, dryRun, override));
         } catch (DataIntegrityViolationException e) {
             if (isOverlap(e)) {
                 // Backstop: the database refused an overlap the checks above did not see.
@@ -78,16 +99,18 @@ class BookingService {
         }
     }
 
-    private BookingResult decide(UUID actor, boolean admin, UUID driverId, RideInput in, Route main, Neighbours seen,
+    private BookingResult decide(Booker booker, UUID driverId, RideInput in, Route main, Neighbours seen,
                                  Route fromPrev, Route toNext, boolean dryRun, boolean override) {
         var driver = drivers.lock(driverId).orElseThrow(() -> ApiException.badRequest("NO_DRIVER"));
         var policy = pricing.policy(driver.id());
         var quick = in.quickAdd();
         var now = clock.instant();
 
-        UUID contactId;
+        var actor = booker instanceof Account a ? a.userId() : null;
+        UUID contactId = null; // guests: created only when the booking is accepted for real
         if (quick) {
-            var staffForDriver = admin || (currentUser.isStaff() && actor.equals(driver.userId()));
+            var staffForDriver = booker instanceof Account a
+                    && (a.admin() || (a.staff() && a.userId().equals(driver.userId())));
             if (!staffForDriver) {
                 throw ApiException.forbidden();
             }
@@ -95,8 +118,8 @@ class BookingService {
             if (contactId == null || contacts.find(contactId).isEmpty()) {
                 throw ApiException.badRequest("CONTACT_REQUIRED");
             }
-        } else {
-            contactId = contacts.byUser(actor).orElseThrow(ApiException::forbidden).id();
+        } else if (booker instanceof Account a) {
+            contactId = contacts.byUser(a.userId()).orElseThrow(ApiException::forbidden).id();
         }
 
         var pickup = new GeoPoint(in.pickup().lat(), in.pickup().lng());
@@ -162,12 +185,12 @@ class BookingService {
         if (!errors.isEmpty() || (!warnings.isEmpty() && !override && !dryRun)) {
             return new BookingResult(false, null, dryRun, estimate.price(), estimate.currency(), estimate.fixed(),
                     policy.licence().value(), allowance, errors, warnings, errors.isEmpty(),
-                    clash.map(Ride::id).orElse(null), main.distanceM(), main.durationS(), main.estimated());
+                    clash.map(Ride::id).orElse(null), main.distanceM(), main.durationS(), main.estimated(), null);
         }
         if (dryRun) {
             return new BookingResult(true, null, true, estimate.price(), estimate.currency(), estimate.fixed(),
                     policy.licence().value(), allowance, List.of(), warnings, false, null, main.distanceM(),
-                    main.durationS(), main.estimated());
+                    main.durationS(), main.estimated(), null);
         }
 
         var status = quick ? RideStatus.ACCEPTED : RideStatus.REQUESTED;
@@ -175,25 +198,46 @@ class BookingService {
                 : in.agreedPrice() != null ? in.agreedPrice()
                 : policy.licence() == Licence.VTC || estimate.fixed() ? estimate.price() : null;
         var deadline = quick ? null : earliest(now.plus(Duration.ofHours(24)), start.minus(Duration.ofHours(2)));
+        if (booker instanceof Guest g) {
+            contactId = guestContact(g);
+        }
+        var accessToken = newAccessToken();
         var rideId = rides.insert(new RideRepository.NewRide(contactId, driver.id(), actor,
                 quick ? Objects.requireNonNullElse(in.source(), "phone") : "app", status, start,
                 in.pickup().address().trim(), pickup.lat(), pickup.lng(), in.dropoff().address().trim(), dropoff.lat(),
                 dropoff.lng(), main.distanceM(), main.durationS(), allowance, end.plus(gap), passengers, luggage,
                 vehicle, meetGreet, travelRef, blankToNull(in.customerNotes()), estimate.currency(), estimate.fixed(),
-                estimate.price(), agreed, deadline));
+                estimate.price(), agreed, deadline, accessToken));
         rides.logEvent(rideId, null, status, actor, warnings.isEmpty() ? null : "overridden: " + String.join(",", warnings));
 
-        var change = notices.about(rideId, contactId, driver.id());
+        var change = notices.about(rideId);
         if (quick) {
             change.tellCustomer("ride_booked");
         } else {
-            change.tellDriver("new_request");
+            change.tellDriver("new_request").tellCustomer("request_received");
         }
         change.publish();
 
         return new BookingResult(true, rideId, false, estimate.price(), estimate.currency(), estimate.fixed(),
                 policy.licence().value(), allowance, List.of(), warnings, false, null, main.distanceM(),
-                main.durationS(), main.estimated());
+                main.durationS(), main.estimated(), accessToken);
+    }
+
+    /** A returning guest (same email and phone) keeps one customer record and one history. */
+    private UUID guestContact(Guest g) {
+        var existing = contacts.guestMatch(g.email(), g.phone());
+        if (existing.isPresent()) {
+            contacts.updateGuestDetails(existing.get().id(), g.fullName(), g.language());
+            return existing.get().id();
+        }
+        // The booking page shows the privacy notice before sending, hence notice_given = true.
+        return contacts.insert(null, g.fullName(), g.phone(), g.email(), true, null, g.language());
+    }
+
+    private static String newAccessToken() {
+        var bytes = new byte[24];
+        RANDOM.nextBytes(bytes);
+        return java.util.HexFormat.of().formatHex(bytes);
     }
 
     private boolean outsideWorkingHours(DriverRepository.Driver driver, Instant start) {
@@ -250,7 +294,7 @@ class BookingService {
     private static BookingResult rejected(List<String> errors, List<String> warnings, String currency, String licence,
                                           Route main) {
         return new BookingResult(false, null, false, null, currency, null, licence, null, errors, warnings, false,
-                null, main.distanceM(), main.durationS(), main.estimated());
+                null, main.distanceM(), main.durationS(), main.estimated(), null);
     }
 
     static boolean isOverlap(DataIntegrityViolationException e) {

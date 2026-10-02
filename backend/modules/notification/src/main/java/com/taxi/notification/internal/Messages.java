@@ -16,6 +16,8 @@ final class Messages {
 
     private static final Map<String, Text> TEXTS = Map.ofEntries(
             Map.entry("new_request", of("Nouvelle demande de course", "New ride request")),
+            Map.entry("request_received", of("Demande envoyée, le chauffeur va confirmer", "Request sent, the driver will confirm")),
+            Map.entry("ride_cancelled_confirmation", of("Votre course a bien été annulée", "Your ride has been cancelled")),
             Map.entry("ride_accepted", of("Votre course est confirmée", "Your ride is confirmed")),
             Map.entry("ride_booked", of("Votre course est réservée", "Your ride is booked")),
             Map.entry("price_proposed", new Text(
