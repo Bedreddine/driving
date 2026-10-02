@@ -1,5 +1,6 @@
 # Backend: Spring Boot 4.1 on Java 21. Built inside Docker, no Java needed on the server.
-FROM eclipse-temurin:21-jdk AS build
+# The jar is the same on every processor: build it on the build machine's own platform (fast), even for Arm servers.
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
 WORKDIR /src
 # Gradle wrapper and build files first: dependencies are cached until they change.
 COPY gradlew settings.gradle.kts build.gradle.kts ./

@@ -23,7 +23,30 @@ curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker $USER   # then log out and back in
 ```
 
+### Oracle Cloud free (Arm) in detail
+
+1. Sign up at cloud.oracle.com (choose your **home region** carefully: free resources stay there, e.g. Paris or Marseille).
+2. **Compute › Instances › Create instance**:
+   - Image: **Canonical Ubuntu 24.04**
+   - Shape: **Ampere › VM.Standard.A1.Flex**, 2 OCPU and 12 GB memory (inside the free allowance)
+   - Networking: keep "assign a public IPv4 address"
+   - SSH keys: **Generate a key pair for me** and download the private key (keep it safe; it is your way in)
+   - If it says "out of capacity", try another availability domain or try again later.
+3. **Open the web ports** (Oracle blocks them twice):
+   - In the instance's **Subnet › Security list › Add ingress rules**: source `0.0.0.0/0`, TCP, destination ports `80,443`.
+   - On the server itself (Oracle's Ubuntu images have their own firewall rules):
+     ```bash
+     sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+     sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+     sudo netfilter-persistent save
+     ```
+4. Connect: `ssh -i <downloaded-key> ubuntu@<public IP>`, then install Docker as above.
+
+The images built by GitHub work on Arm and on Intel/AMD servers alike.
+
 ## 2. Your domain (once)
+
+**No domain yet?** Use the free name sslip.io gives every IP address: for `152.67.12.34` it is `152-67-12-34.sslip.io`. Put that in `DOMAIN` below; HTTPS works with it. Switch to your real domain later by changing `DOMAIN` and `SITE_URL` and restarting.
 
 At your domain registrar, point an `A` record (e.g. `book.your-domain.com`, or the domain itself) to the server's IP address. Open ports 80 and 443 in the server's firewall (on Oracle Cloud: also in the "security list" of the network).
 

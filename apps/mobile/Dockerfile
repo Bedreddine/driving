@@ -1,6 +1,7 @@
 # Website (QR booking page, client space, back office): Expo web export served by nginx.
 # Build from the repository root (npm workspaces): docker build -f apps/mobile/Dockerfile .
-FROM node:22-alpine AS build
+# The exported website is plain files: build them on the build machine's own platform, even for Arm servers.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /src
 COPY package.json package-lock.json ./
 COPY apps/mobile/package.json apps/mobile/
