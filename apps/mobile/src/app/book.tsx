@@ -412,7 +412,7 @@ export default function Experience() {
             </Rise>
           ) : null}
           <Rise index={2} style={{ marginTop: 18 }}>
-            <Button title={t('whereTo')} onPress={() => edit('from')} trailing={<ArrowRight />} />
+            <Button size="lg" title={t('whereTo')} onPress={() => edit('from')} trailing={<ArrowRight />} />
           </Rise>
           {amenityLabels.length > 0 ? (
             <Rise index={3} style={{ marginTop: 16 }}>
@@ -589,6 +589,7 @@ export default function Experience() {
 
                     {sendError ? <Notice tone="error">{sendError}</Notice> : null}
                     <Button
+                      size="lg"
                       title={driverName ? t('bookWith').replace('{name}', driverName) : t('bookNow')}
                       onPress={send}
                       loading={sending}

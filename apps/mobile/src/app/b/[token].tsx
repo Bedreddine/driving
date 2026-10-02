@@ -212,7 +212,7 @@ export default function GuestRide() {
             <ErrorText>{error}</ErrorText>
             {ride.status === 'price_proposed' ? (
               <View style={{ gap: 10 }}>
-                <Button icon="check" title={t('acceptPrice')} loading={busy === 'yes'} onPress={() => act('yes', () => respondAsGuest(token, true))} />
+                <Button size="lg" icon="check" title={t('acceptPrice')} loading={busy === 'yes'} onPress={() => act('yes', () => respondAsGuest(token, true))} />
                 <Button kind="secondary" icon="x" title={t('refusePrice')} loading={busy === 'no'} onPress={() => act('no', () => respondAsGuest(token, false))} />
               </View>
             ) : null}

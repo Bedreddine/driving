@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,7 +12,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Icon, type IconName } from './controls';
+import { choiceColors, Icon, Touchable, type IconName } from './controls';
 import { fonts, night, tabular, useTheme } from '@/lib/theme';
 
 /** The night palette under the names the driver and back-office screens use (DESIGN.md › Colors). */
@@ -32,7 +31,7 @@ export const colors = {
 };
 
 export { fonts };
-export { ArrowRight, Button, ClearButton, Field, FieldShell, fieldInputStyle, Icon, Stepper, Toggle, type IconName } from './controls';
+export { ArrowRight, Button, ClearButton, Field, FieldShell, fieldInputStyle, Icon, Stepper, tick, Toggle, Touchable, type IconName } from './controls';
 
 /**
  * Page frame: safe areas (notch, home bar), keyboard that never covers the focused field, scrolling.
@@ -123,7 +122,7 @@ export function Row({ children, style }: { children: ReactNode; style?: StylePro
   return <View style={[styles.row, style]}>{children}</View>;
 }
 
-/** A small choice between a few options (vehicle, source, language...). */
+/** A small choice between a few options (vehicle, licence, status…): selected in amber with a check. */
 export function Segmented<T extends string>({ options, value, onChange }: { options: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   const theme = useTheme();
   return (
@@ -131,18 +130,20 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
       {options.map((o) => {
         const on = o.value === value;
         return (
-          <Pressable
+          <Touchable
             key={o.value}
             accessibilityRole="button"
             accessibilityState={{ selected: on }}
             onPress={() => onChange(o.value)}
-            style={[
-              styles.segment,
-              { borderColor: on ? theme.primary : theme.rule, backgroundColor: on ? theme.primary : theme.surface },
-            ]}
+            pressScale={0.95}
+            style={({ pressed, hovered }) => {
+              const c = choiceColors(theme, on, pressed || hovered);
+              return [styles.segment, { borderColor: c.borderColor, backgroundColor: c.backgroundColor }];
+            }}
           >
-            <Text style={{ color: on ? theme.onPrimary : theme.text, fontFamily: fonts.medium }}>{o.label}</Text>
-          </Pressable>
+            {on ? <Icon name="check" size={15} color={theme.primary} /> : null}
+            <Text style={{ color: on ? theme.primary : theme.text, fontFamily: fonts.semibold, fontSize: 15 }}>{o.label}</Text>
+          </Touchable>
         );
       })}
     </Row>
@@ -208,7 +209,7 @@ export const styles = StyleSheet.create({
   stepBtn: { width: 38, height: 38, borderRadius: 3, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },
   stepText: { fontSize: 20, color: colors.primary, fontFamily: fonts.medium },
   segmented: { gap: 8, flexWrap: 'wrap' },
-  segment: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 3, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  segment: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 46, paddingHorizontal: 16, borderRadius: 3, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card },
   error: { fontFamily: fonts.body, color: colors.danger, fontSize: 15, lineHeight: 21 },
   notice: { borderWidth: 1, padding: 12, borderRadius: 3 },
 });

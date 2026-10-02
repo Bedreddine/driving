@@ -1,10 +1,10 @@
 // The pieces of "Nuit Blanche" (DESIGN.md): rise-in, titles, count-up price, place rows, chips,
 // the « À bord » menu, timeline and stars.
 import { useEffect, useState, type ReactNode } from 'react';
-import { Animated, Pressable, Text, View, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Animated, Text, View, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { durations, ease, nativeDriver, useReducedMotion } from '@/lib/motion';
 import { fonts, tabular, useTheme } from '@/lib/theme';
-import { Icon, type IconName } from './controls';
+import { choiceColors, Icon, Touchable, type IconName } from './controls';
 
 /** Content arriving on screen: fades in while rising 12px, one block after the other (`index`). */
 export function Rise({ index = 0, children, style }: { index?: number; children: ReactNode; style?: StyleProp<ViewStyle> }) {
@@ -69,88 +69,87 @@ export function CountUp({ value, format, size = 54 }: { value: number; format: (
   );
 }
 
-/** One suggested place or search result: name and detail on the left, distance in mono on the right. */
+/** One suggested place or search result: icon, name and detail, distance in mono on the right. */
 export function PlaceRow({ title, detail, distance, icon, onPress }: { title: string; detail?: string; distance?: string; icon?: IconName; onPress: () => void }) {
   const theme = useTheme();
   return (
-    <Pressable
+    <Touchable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => ({
+      pressScale={0.985}
+      style={({ pressed, hovered }) => ({
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
-        paddingVertical: 12,
+        gap: 14,
+        minHeight: 64,
+        paddingVertical: 10,
+        paddingHorizontal: 10,
+        marginHorizontal: -10,
+        borderRadius: 3,
         borderBottomWidth: 1,
         borderBottomColor: theme.rule,
-        backgroundColor: pressed || hovered ? theme.surface : 'transparent',
+        backgroundColor: pressed ? theme.controlHover : hovered ? theme.control : 'transparent',
       })}
     >
-      {({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => (
+      {({ pressed, hovered }) => (
         <>
           {icon ? (
-            <View style={{ width: 34, height: 34, borderRadius: 3, borderWidth: 1, borderColor: theme.rule, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name={icon} size={17} color={pressed || hovered ? theme.primary : theme.text} />
+            <View style={{ width: 40, height: 40, borderRadius: 3, borderWidth: 1.5, borderColor: pressed || hovered ? theme.primary : theme.edge, backgroundColor: theme.control, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name={icon} size={19} color={pressed || hovered ? theme.primary : theme.text} />
             </View>
           ) : null}
           <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: fonts.semibold, fontSize: 15.5, lineHeight: 21, color: theme.text }}>{title}</Text>
-            {detail ? <Text style={{ fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: theme.muted }}>{detail}</Text> : null}
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 16.5, lineHeight: 22, color: theme.text }}>{title}</Text>
+            {detail ? <Text style={{ fontFamily: fonts.body, fontSize: 14, lineHeight: 19, color: theme.label }}>{detail}</Text> : null}
           </View>
           {distance ? (
-            <Text style={{ fontFamily: fonts.mono, fontSize: 12.5, color: pressed || hovered ? theme.primary : theme.muted, ...tabular }}>{distance}</Text>
+            <Text style={{ fontFamily: fonts.mono, fontSize: 13.5, color: pressed || hovered ? theme.primary : theme.label, ...tabular }}>{distance}</Text>
           ) : null}
+          <Icon name="chevron-right" size={18} color={pressed || hovered ? theme.primary : theme.edge} />
         </>
       )}
-    </Pressable>
+    </Touchable>
   );
 }
 
-/** A small choice (time, tab). Selected: amber border and text. */
+/** A small choice (time, option). Selected: amber edge, tint and a check. */
 export function Chip({ label, selected, onPress }: { label: string; selected?: boolean; onPress: () => void }) {
   const theme = useTheme();
   return (
-    <Pressable
+    <Touchable
       accessibilityRole="button"
       accessibilityState={{ selected: !!selected }}
       onPress={onPress}
-      style={({ pressed }) => ({
-        paddingVertical: 9,
-        paddingHorizontal: 12,
-        borderRadius: 3,
-        borderWidth: 1,
-        borderColor: selected ? theme.primary : theme.rule,
-        backgroundColor: theme.surface,
-        transform: pressed ? [{ scale: 0.97 }] : undefined,
-      })}
+      pressScale={0.95}
+      style={({ pressed, hovered }) => {
+        const c = choiceColors(theme, !!selected, pressed || hovered);
+        return { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 46, paddingHorizontal: 14, borderRadius: 3, borderWidth: 1.5, borderColor: c.borderColor, backgroundColor: c.backgroundColor };
+      }}
     >
-      <Text style={{ fontFamily: fonts.semibold, fontSize: 13.5, color: selected ? theme.primary : theme.text }}>{label}</Text>
-    </Pressable>
+      {selected ? <Icon name="check" size={16} color={theme.primary} /> : null}
+      <Text style={{ fontFamily: fonts.semibold, fontSize: 15, color: selected ? theme.primary : theme.text }}>{label}</Text>
+    </Touchable>
   );
 }
 
-/** Tabs as words with an amber underline (Airports · Stations · Palaces). */
+/** Tabs as words with a thick amber underline (Airports · Stations · Palaces). */
 export function Tabs<T extends string>({ options, value, onChange }: { options: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   const theme = useTheme();
   return (
-    <View accessibilityRole="tablist" style={{ flexDirection: 'row', gap: 20 }}>
+    <View accessibilityRole="tablist" style={{ flexDirection: 'row', gap: 6, borderBottomWidth: 1, borderBottomColor: theme.rule }}>
       {options.map((o) => {
         const on = o.value === value;
         return (
-          <Pressable key={o.value} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onChange(o.value)} hitSlop={6}>
-            <Text
-              style={{
-                fontFamily: fonts.bold,
-                fontSize: 14.5,
-                paddingVertical: 6,
-                color: on ? theme.text : theme.muted,
-                borderBottomWidth: 2,
-                borderBottomColor: on ? theme.primary : 'transparent',
-              }}
-            >
-              {o.label}
-            </Text>
-          </Pressable>
+          <Touchable
+            key={o.value}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: on }}
+            onPress={() => onChange(o.value)}
+            pressScale={0.96}
+            style={({ hovered }) => ({ minHeight: 46, justifyContent: 'center', paddingHorizontal: 10, borderBottomWidth: 3, borderBottomColor: on ? theme.primary : hovered ? theme.edge : 'transparent', marginBottom: -1 })}
+          >
+            <Text style={{ fontFamily: fonts.bold, fontSize: 15.5, color: on ? theme.text : theme.label }}>{o.label}</Text>
+          </Touchable>
         );
       })}
     </View>
@@ -249,30 +248,30 @@ export function Timeline({ steps, reached }: { steps: TimelineStep[]; reached: n
 export function StarRating({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) {
   const theme = useTheme();
   return (
-    <View accessibilityRole="radiogroup" accessibilityLabel={label} style={{ flexDirection: 'row', gap: 6, marginVertical: 6 }}>
+    <View accessibilityRole="radiogroup" accessibilityLabel={label} style={{ flexDirection: 'row', gap: 8, marginVertical: 6 }}>
       {[1, 2, 3, 4, 5].map((n) => {
         const on = n <= value;
         return (
-          <Pressable
+          <Touchable
             key={n}
             accessibilityRole="radio"
             accessibilityLabel={`${n} / 5`}
             accessibilityState={{ checked: n === value }}
             onPress={() => onChange(n)}
-            style={({ pressed }) => ({
-              width: 44,
-              height: 44,
+            pressScale={0.88}
+            style={({ hovered }) => ({
+              width: 52,
+              height: 52,
               borderRadius: 3,
-              borderWidth: 1,
+              borderWidth: 1.5,
               alignItems: 'center',
               justifyContent: 'center',
-              borderColor: on ? theme.primary : theme.rule,
-              backgroundColor: on ? theme.primary : theme.surface,
-              transform: pressed ? [{ scale: 0.95 }] : undefined,
+              borderColor: on ? theme.primary : hovered ? theme.text : theme.edge,
+              backgroundColor: on ? theme.primary : theme.control,
             })}
           >
-            <Text style={{ fontSize: 19, color: on ? theme.onPrimary : theme.muted }}>★</Text>
-          </Pressable>
+            <Text style={{ fontSize: 22, color: on ? theme.onPrimary : theme.label }}>★</Text>
+          </Touchable>
         );
       })}
     </View>

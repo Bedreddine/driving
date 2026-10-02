@@ -14,6 +14,10 @@ colors:
   success: "#6CC08F"
   warning: "#E9A23B"
   error: "#E5735F"
+  control: "#262B33"
+  control-hover: "#2F353F"
+  edge: "#5B626D"
+  label: "#BDB8AE"
   map-land: "#121417"
   map-water: "#1B2430"
   map-park: "#14181A"
@@ -126,9 +130,10 @@ Tone, not shadow: asphalt surfaces step up in lightness, divided by 1px `line` h
 
 ## Components
 
-- **Primary button:** solid amber, dark text, Manrope 700, label left and the price or an arrow right ("Réserver avec Karim · 95 €"). Pressed: scale 0.985. Disabled: 45% opacity with a reason shown under it.
-- **Secondary / chip:** `surface` with a `line` border; selected chip turns its border and text amber.
-- **Field:** small mono uppercase label, value in Manrope 16-17px, `line` underline; focus draws an amber underline from the left.
+- **Every control** (button, field, chip, switch, counter): `control` fill with a 1.5px `edge` border so it stands out from the page; at least 44px to touch (fields 64px, buttons 54px, main actions 60px); pressed = shrinks to 96–97% and springs back without overshoot, a light haptic tick on phones, Android ripple; hover = lighter fill and ivory edge; keyboard focus = 2px amber ring offset 3px.
+- **Primary button:** solid amber, dark text, Manrope 700 at 16.5–17.5px, icon on the left, the price or an arrow on the right ("Réserver avec Karim · 95 €"). Disabled: 40% opacity with a reason shown under it. Loading: spinner in place of the icon.
+- **Secondary / chip / segmented:** `control` fill, `edge` border; selected = amber border, amber tint and a check icon.
+- **Field:** filled box, label inside in `label` colour that floats up on focus or when filled; value in Manrope 17px; focus = 2px amber border; error = coral border, message with an icon under it and one short shake.
 - **Place row:** name + one muted line (terminal, street), distance in mono on the right; amber distance on hover/focus.
 - **Map pins:** pickup amber with asphalt border; drop-off ivory with amber border. A pin placed by hand shows its address and coordinates (`48.8681° N · 2.3290° E`).
 - **Route line:** amber, 4px, rounded, drawn from start to end in 1.1s.

@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Image, Platform, ScrollView, Text, View } from 'react-native';
 import { QrCardPanel } from '@/components/QrCardPanel';
 import { Chip } from '@/components/scene';
 import { emptyVehicle, VehicleEditor } from '@/components/VehicleEditor';
@@ -194,18 +194,17 @@ export default function AdminBusiness() {
                     <Field label={t('amenityDetailEn')} value={a.detail_en ?? ''} onChangeText={setAmenity(i, 'detail_en')} maxLength={60} />
                   </View>
                 </Row>
-                <Row style={{ gap: 18, justifyContent: 'flex-end' }}>
+                <Row style={{ gap: 8, justifyContent: 'flex-end' }}>
                   {i > 0 ? (
-                    <Pressable
-                      accessibilityRole="button"
+                    <Button
+                      kind="secondary"
+                      size="sm"
+                      icon="arrow-up"
+                      title={t('moveUp')}
                       onPress={() => setAmenities((list) => [...list.slice(0, i - 1), list[i], list[i - 1], ...list.slice(i + 1)])}
-                    >
-                      <Text style={textLink}>↑ {t('moveUp')}</Text>
-                    </Pressable>
+                    />
                   ) : null}
-                  <Pressable accessibilityRole="button" onPress={() => setAmenities((list) => list.filter((_, j) => j !== i))}>
-                    <Text style={[textLink, { color: colors.danger }]}>{t('remove')}</Text>
-                  </Pressable>
+                  <Button kind="danger" size="sm" icon="trash-2" title={t('remove')} onPress={() => setAmenities((list) => list.filter((_, j) => j !== i))} />
                 </Row>
               </View>
             ))}

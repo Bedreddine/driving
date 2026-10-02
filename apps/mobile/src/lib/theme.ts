@@ -13,6 +13,12 @@ export type Palette = {
   success: string;
   warning: string;
   error: string;
+  /** Controls (fields, buttons, chips): a fill and an edge that stand out from the page. */
+  control: string;
+  controlHover: string;
+  edge: string;
+  /** Field labels and icons at rest: brighter than ordinary muted text. */
+  label: string;
 };
 
 /** Always dark: the client pages live at night, in hotel lobbies and in the car (DESIGN.md › Colors). */
@@ -28,6 +34,10 @@ export const night: Palette = {
   success: '#6CC08F',
   warning: '#E9A23B',
   error: '#E5735F',
+  control: '#262B33',
+  controlHover: '#2F353F',
+  edge: '#5B626D',
+  label: '#BDB8AE',
 };
 
 /** Font family names, as registered by useFonts in the root layout. One family per weight (needed on phones). */
