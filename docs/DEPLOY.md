@@ -9,6 +9,21 @@ push to main ──► GitHub Actions: tests ──► images on ghcr.io ──�
                                                                                        └─ PostgreSQL
 ```
 
+## Fast path (Oracle Cloud free + DuckDNS, about 30 minutes)
+
+1. **Server:** create the free Oracle Cloud machine (see "Oracle Cloud free in detail" below) and download its SSH key.
+2. **Free name:** on duckdns.org, sign in with GitHub, choose a name (e.g. `elysee-chauffeur`) and put your server's public IP in it. Your address is `elysee-chauffeur.duckdns.org`.
+3. **GitHub token for the server:** GitHub › Settings › Developer settings › Tokens (classic) › Generate, scopes `repo` and `read:packages` only. You type it on the server, once.
+4. **From your Mac, in the project folder:**
+   ```bash
+   scp -i ~/Downloads/<your-key>.key deploy/setup-server.sh ubuntu@<server-ip>:
+   ssh -t -i ~/Downloads/<your-key>.key ubuntu@<server-ip> 'bash setup-server.sh'
+   ```
+   The script installs Docker, opens the ports, downloads the code, creates the settings with fresh random secrets, and starts everything with HTTPS. It asks only for your GitHub user + token, the address (`elysee-chauffeur.duckdns.org`) and, optionally, your email (SMTP) settings.
+5. Create your account on the site, make it the owner (the script prints the command), sign in at `/admin`.
+
+The sections below explain each step in detail.
+
 ## 1. A server (once)
 
 Any Linux machine with 2 GB of memory or more and Docker:
