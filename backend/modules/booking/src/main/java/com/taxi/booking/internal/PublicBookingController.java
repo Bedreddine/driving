@@ -4,6 +4,7 @@ import com.taxi.booking.internal.BookingModels.BookingResult;
 import com.taxi.booking.internal.BookingModels.RideInput;
 import com.taxi.pricing.Pricing;
 import com.taxi.shared.ApiException;
+import com.taxi.shared.RateLimiter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;

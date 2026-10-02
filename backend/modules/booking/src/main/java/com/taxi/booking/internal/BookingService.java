@@ -63,6 +63,17 @@ class BookingService {
     record Guest(String fullName, String phone, String email, String language) implements Booker {}
 
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final Duration MAX_HORIZON = Duration.ofDays(365);
+
+    /**
+     * When the driver must have answered a request: 24 h after it, and 2 h before pickup at the latest,
+     * but never less than 30 minutes from now (short notice settings) and never after the pickup.
+     */
+    static Instant answerDeadline(Instant now, Instant pickup) {
+        var deadline = earliest(now.plus(Duration.ofHours(24)), pickup.minus(Duration.ofHours(2)));
+        var floor = earliest(now.plus(Duration.ofMinutes(30)), pickup);
+        return deadline.isBefore(floor) ? floor : deadline;
+    }
 
     /** Signed-in customer request, or driver quick-add. */
     BookingResult book(RideInput in, boolean dryRun, boolean override) {
@@ -151,6 +162,9 @@ class BookingService {
         if (!quick && start.isBefore(now.plus(Duration.ofMinutes(policy.leadTimeMinutes())))) {
             errors.add("TOO_SHORT_NOTICE");
         }
+        if (start.isAfter(now.plus(MAX_HORIZON))) {
+            errors.add("TOO_FAR_AHEAD");
+        }
 
         // Rules a driver may override on a quick-add, but that block a customer request
         if (passengers > driver.seats() || luggage > driver.luggage()) {
@@ -202,7 +216,7 @@ class BookingService {
         var agreed = !quick ? null
                 : in.agreedPrice() != null ? in.agreedPrice()
                 : policy.licence() == Licence.VTC || estimate.fixed() ? estimate.price() : null;
-        var deadline = quick ? null : earliest(now.plus(Duration.ofHours(24)), start.minus(Duration.ofHours(2)));
+        var deadline = quick ? null : answerDeadline(now, start);
         if (booker instanceof Guest g) {
             contactId = guestContact(g);
         }
@@ -228,11 +242,39 @@ class BookingService {
                 main.durationS(), main.estimated(), accessToken);
     }
 
+    /**
+     * Before the driver confirms a request (accept or price proposal): is there enough road time from the
+     * previous drop-off and to the next pickup, and is the driver not on time off? These are warnings the driver
+     * may override (they know the city); overlaps stay forbidden by the database.
+     */
+    List<String> scheduleWarnings(UUID rideId) {
+        var ride = rides.find(rideId).orElseThrow(ApiException::notFound);
+        var gap = Duration.ofMinutes(pricing.policy(ride.driverId()).minGapMinutes());
+        var pickup = new GeoPoint(ride.pickupLat(), ride.pickupLng());
+        var dropoff = new GeoPoint(ride.dropoffLat(), ride.dropoffLng());
+        // An overlap is not a warning: it can never be accepted, so say so first.
+        if (rides.overlapping(ride.driverId(), ride.pickup(), ride.endsAt().plus(gap), ride.id()).isPresent()) {
+            throw ApiException.conflict("SLOT_TAKEN");
+        }
+        var nb = rides.neighbours(ride.driverId(), ride.pickup(), ride.id());
+        var fromPrev = nb.prev() == null ? null : routing.route(point(nb.prev()), pickup);
+        var toNext = nb.next() == null ? null : routing.route(dropoff, point(nb.next()));
+        var warnings = new ArrayList<String>();
+        if (tooTight(nb, ride.pickup(), ride.endsAt(), gap, fromPrev, toNext)) {
+            warnings.add("TIGHT_SCHEDULE");
+        }
+        if (drivers.hasTimeOffOverlapping(ride.driverId(), ride.pickup(), ride.endsAt())) {
+            warnings.add("DRIVER_UNAVAILABLE");
+        }
+        return warnings;
+    }
+
     /** A returning guest (same email and phone) keeps one customer record and one history. */
     private UUID guestContact(Guest g) {
         var existing = contacts.guestMatch(g.email(), g.phone());
         if (existing.isPresent()) {
-            contacts.updateGuestDetails(existing.get().id(), g.fullName(), g.language());
+            // The name the driver knows is kept: whoever knows an email and phone must not be able to rename it.
+            contacts.updateGuestLanguage(existing.get().id(), g.language());
             return existing.get().id();
         }
         // The booking page shows the privacy notice before sending, hence notice_given = true.

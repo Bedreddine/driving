@@ -19,8 +19,6 @@ final class CustomerTexts {
     static final Set<String> KINDS = Set.of("request_received", "ride_accepted", "ride_booked", "price_proposed",
             "ride_declined", "ride_cancelled_by_driver", "ride_cancelled_confirmation", "ride_expired", "ride_completed");
 
-    private static final ZoneId PARIS = ZoneId.of("Europe/Paris");
-
     static Email email(String kind, Map<String, Object> payload, RideChanged.Customer c, RideChanged.Trip trip,
                        Business.Info business) {
         var en = "en".equals(c.language());
@@ -54,7 +52,7 @@ final class CustomerTexts {
 
     private static String when(RideChanged.Trip trip, boolean en) {
         var fmt = DateTimeFormatter.ofPattern(en ? "EEE d MMM, HH:mm" : "EEE d MMM 'à' HH:mm", en ? Locale.UK : Locale.FRANCE);
-        return trip.pickupAt().atZone(PARIS).format(fmt);
+        return trip.pickupAt().atZone(ZoneId.of(trip.timezone() == null ? "Europe/Paris" : trip.timezone())).format(fmt);
     }
 
     private static String subject(String kind, boolean en) {
@@ -89,9 +87,10 @@ final class CustomerTexts {
             case "ride_expired" -> en
                     ? "Your request could not be confirmed in time. Please book again or call us."
                     : "Votre demande n'a pas pu être confirmée à temps. Merci de réserver à nouveau ou de nous appeler.";
-            case "ride_completed" -> en
+            case "ride_completed" -> (en
                     ? "Thank you for your ride. Total: " + money(p.get("final_price"), trip, true) + "."
-                    : "Merci pour votre course. Total : " + money(p.get("final_price"), trip, false) + ".";
+                    : "Merci pour votre course. Total : " + money(p.get("final_price"), trip, false) + ".")
+                    + reason(p, en);
             default -> en ? "Your ride was updated." : "Votre course a été mise à jour.";
         };
     }

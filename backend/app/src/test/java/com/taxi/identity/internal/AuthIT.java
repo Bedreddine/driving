@@ -57,7 +57,7 @@ class AuthIT extends IntegrationTest {
 
     @Test
     void forgedOrMissingTokensAreRejected() throws Exception {
-        call(get("/api/me"), null, null, 401);
+        assertThat(errorOf(get("/api/me"), null, null, 401)).isEqualTo("UNAUTHENTICATED");
         call(get("/api/me"), clientToken.substring(0, clientToken.length() - 3) + "abc", null, 401);
     }
 
@@ -71,5 +71,19 @@ class AuthIT extends IntegrationTest {
         assertThat(me.get("full_name").asString()).isEqualTo("New Name");
         assertThat(me.get("language").asString()).isEqualTo("en");
         assertThat(me.get("phone").isNull()).isTrue();
+        // The driver sees the same name and language on the customer card
+        var contact = jdbc.sql("select full_name, language from contacts where user_id = :u").param("u", clientId).query().singleRow();
+        assertThat(contact).containsEntry("full_name", "New Name").containsEntry("language", "en");
+    }
+
+    @Test
+    void everyErrorHasTheSameShape() throws Exception {
+        assertThat(errorOf(get("/api/does-not-exist"), clientToken, null, 404)).isEqualTo("NOT_FOUND");
+        assertThat(errorOf(get("/api/admin/working-hours"), clientToken, null, 403)).isEqualTo("FORBIDDEN");
+        assertThat(errorOf(get("/actuator/modulith"), clientToken, null, 403)).isEqualTo("FORBIDDEN");
+        // A surcharge for a driver that does not exist: refused as bad input, not a server error
+        assertThat(errorOf(post("/api/admin/pricing/" + java.util.UUID.randomUUID() + "/surcharges"), ownerToken,
+                Map.of("name", "x", "days", java.util.List.of(1), "start_time", "20:00", "end_time", "22:00", "percent", 10), 400))
+                .isEqualTo("BAD_INPUT");
     }
 }

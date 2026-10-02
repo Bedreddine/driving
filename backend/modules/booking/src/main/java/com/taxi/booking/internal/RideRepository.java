@@ -111,14 +111,21 @@ class RideRepository {
 
     /** The slot-holding rides right before and right after a pickup time, within 12 hours. */
     Neighbours neighbours(UUID driverId, Instant pickupAt) {
+        return neighbours(driverId, pickupAt, null);
+    }
+
+    /** Same, ignoring one ride (the one being accepted). */
+    Neighbours neighbours(UUID driverId, Instant pickupAt, UUID exclude) {
         var prev = jdbc.sql("select " + Ride.COLUMNS + " from rides where driver_id = :d and status in " + HOLDING
-                        + " and pickup_at <= :p and pickup_at > :from order by pickup_at desc limit 1")
+                        + " and pickup_at <= :p and pickup_at > :from and id is distinct from :x order by pickup_at desc limit 1")
                 .param("d", driverId).param("p", utc(pickupAt)).param("from", utc(pickupAt.minus(NEIGHBOUR_WINDOW)))
+                .param("x", exclude)
                 .query(Ride.class).optional()
                 .map(r -> new Neighbour(r.id(), r.dropoffLat(), r.dropoffLng(), r.endsAt()));
         var next = jdbc.sql("select " + Ride.COLUMNS + " from rides where driver_id = :d and status in " + HOLDING
-                        + " and pickup_at > :p and pickup_at < :to order by pickup_at asc limit 1")
+                        + " and pickup_at > :p and pickup_at < :to and id is distinct from :x order by pickup_at asc limit 1")
                 .param("d", driverId).param("p", utc(pickupAt)).param("to", utc(pickupAt.plus(NEIGHBOUR_WINDOW)))
+                .param("x", exclude)
                 .query(Ride.class).optional()
                 .map(r -> new Neighbour(r.id(), r.pickupLat(), r.pickupLng(), r.pickup()));
         return new Neighbours(prev.orElse(null), next.orElse(null));
@@ -190,6 +197,7 @@ class RideRepository {
 
     /** Keep rides for accounting without personal data. */
     void stripPersonalData(UUID contactId) {
+        // (also used by the back office to erase a phone customer on request)
         jdbc.sql("""
                 update rides set pickup_address = '(address removed)', dropoff_address = '(address removed)',
                   pickup_lat = round(pickup_lat::numeric, 2), pickup_lng = round(pickup_lng::numeric, 2),
@@ -207,6 +215,7 @@ class RideRepository {
                 update rides set pickup_address = '(address removed)', dropoff_address = '(address removed)',
                   pickup_lat = round(pickup_lat::numeric, 2), pickup_lng = round(pickup_lng::numeric, 2),
                   dropoff_lat = round(dropoff_lat::numeric, 2), dropoff_lng = round(dropoff_lng::numeric, 2)
+                , customer_notes = null, travel_ref = null
                 where status in ('completed', 'no_show') and pickup_at < now() - interval '3 years'
                   and pickup_address <> '(address removed)'""").update();
         jdbc.sql("delete from rides where status in ('completed', 'no_show') and pickup_at < now() - interval '10 years'")

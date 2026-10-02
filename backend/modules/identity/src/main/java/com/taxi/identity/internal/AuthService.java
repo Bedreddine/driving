@@ -76,7 +76,7 @@ class AuthService implements Owners {
             throw ApiException.conflict("EMAIL_TAKEN");
         }
         users.addRole(id, Role.CUSTOMER);
-        events.publishEvent(new UserRegistered(id, cleanEmail, name, cleanPhone));
+        events.publishEvent(new UserRegistered(id, cleanEmail, name, cleanPhone, normalizeLanguage(language)));
         return issue(id);
     }
 

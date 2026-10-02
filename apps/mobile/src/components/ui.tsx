@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -36,16 +37,26 @@ export const colors = {
 /** Serif display font for the premium booking website. */
 export const serif = Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia, "Times New Roman", serif' });
 
-export function Screen({ children, scroll = true }: { children: ReactNode; scroll?: boolean }) {
+/**
+ * Page frame: safe areas (notch, home bar), keyboard that never covers the focused field, scrolling.
+ * `top`: also keep clear of the status bar / notch, for screens without a navigation header.
+ */
+export function Screen({ children, scroll = true, top = false }: { children: ReactNode; scroll?: boolean; top?: boolean }) {
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom', 'left', 'right']}>
-      {scroll ? (
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <View style={styles.inner}>{children}</View>
-        </ScrollView>
-      ) : (
-        <View style={[styles.content, styles.inner, { flex: 1 }]}>{children}</View>
-      )}
+    <SafeAreaView style={styles.safe} edges={top ? ['top', 'bottom', 'left', 'right'] : ['bottom', 'left', 'right']}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        {scroll ? (
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
+          >
+            <View style={styles.inner}>{children}</View>
+          </ScrollView>
+        ) : (
+          <View style={[styles.content, styles.inner, { flex: 1 }]}>{children}</View>
+        )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -29,7 +29,7 @@ export default function SignUp() {
   };
 
   return (
-    <Screen>
+    <Screen top>
       <Title>{t('signUp')}</Title>
       <Field label={t('fullName')} value={fullName} onChangeText={setFullName} autoComplete="name" />
       <Field label={t('phone')} value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" />

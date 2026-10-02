@@ -27,8 +27,11 @@ export default function AdminBusiness() {
   // The QR code always points to the booking page of the saved website address.
   const bookingUrl = saved ? `${siteUrl(saved) ?? ''}/book` : null;
   useEffect(() => {
-    if (!bookingUrl) return;
-    void QRCode.toDataURL(bookingUrl, { ...QR_OPTIONS, width: 360 }).then(setQr);
+    // The QR library draws on a browser canvas: the back office is used on the website (on a phone, the link shows).
+    if (!bookingUrl || Platform.OS !== 'web') return;
+    void QRCode.toDataURL(bookingUrl, { ...QR_OPTIONS, width: 360 })
+      .then(setQr)
+      .catch(() => setQr(null));
   }, [bookingUrl]);
 
   const set = (k: keyof BusinessInfo) => (v: string) => {

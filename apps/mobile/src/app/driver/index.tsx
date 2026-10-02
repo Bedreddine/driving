@@ -2,14 +2,15 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { RideCard } from '@/components/RideCard';
-import { Button, ErrorText, Label, Loading, Muted, Row, Screen } from '@/components/ui';
+import { Button, ErrorText, Label, Loading, Muted, Row, Screen, Segmented } from '@/components/ui';
+import type { Lang } from '@/lib/i18n';
 import { requestConflicts, type Ride } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { dayKey, formatDay } from '@/lib/format';
 import { useRides } from '@/lib/useRides';
 
 export default function DriverHome() {
-  const { t, err, lang, roles, signOut } = useAuth();
+  const { t, err, lang, roles, signOut, setLanguage } = useAuth();
   const router = useRouter();
   // Everything from 12 hours ago, so rides still to close stay visible.
   const [since] = useState(() => new Date(Date.now() - 12 * 3600_000).toISOString());
@@ -60,6 +61,14 @@ export default function DriverHome() {
       ))}
       {rides && accepted.length === 0 ? <Muted>{t('noRides')}</Muted> : null}
 
+      <Segmented<Lang>
+        options={[
+          { value: 'fr', label: 'Français' },
+          { value: 'en', label: 'English' },
+        ]}
+        value={lang}
+        onChange={(l) => void setLanguage(l)}
+      />
       <Button kind="secondary" title={t('signOut')} onPress={() => void signOut().then(() => router.replace('/sign-in'))} />
     </Screen>
   );

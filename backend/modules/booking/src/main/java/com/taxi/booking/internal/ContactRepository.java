@@ -65,13 +65,26 @@ class ContactRepository {
             return Optional.empty();
         }
         return jdbc.sql("select " + COLUMNS + " from contacts where user_id is null and anonymized_at is null"
-                        + " and lower(email) = lower(:e) and phone = :p order by created_at limit 1")
+                        + " and lower(email) = lower(:e)"
+                        + " and regexp_replace(phone, '[^0-9+]', '', 'g') = regexp_replace(:p, '[^0-9+]', '', 'g')"
+                        + " order by created_at limit 1")
                 .param("e", email).param("p", phone).query(Contact.class).optional();
     }
 
-    void updateGuestDetails(UUID id, String fullName, String language) {
-        jdbc.sql("update contacts set full_name = :n, language = :l, updated_at = now() where id = :id")
-                .param("n", fullName).param("l", language).param("id", id).update();
+    void updateGuestLanguage(UUID id, String language) {
+        jdbc.sql("update contacts set language = :l, updated_at = now() where id = :id")
+                .param("l", language).param("id", id).update();
+    }
+
+    /** An account holder changed their profile: the driver sees the same name, phone and language. */
+    void updateFromProfile(UUID userId, String fullName, String phone, String language) {
+        jdbc.sql("update contacts set full_name = :n, phone = :p, language = :l, updated_at = now() where user_id = :u")
+                .param("n", fullName).param("p", phone).param("l", language).param("u", userId).update();
+    }
+
+    boolean isAnonymized(UUID id) {
+        return jdbc.sql("select anonymized_at is not null from contacts where id = :id").param("id", id)
+                .query(Boolean.class).optional().orElse(false);
     }
 
     /**

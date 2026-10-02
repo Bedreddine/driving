@@ -26,5 +26,5 @@ public record RideChanged(UUID rideId, UUID customerUserId, UUID driverUserId, L
 
     /** What the customer needs to recognise the ride, and the private link token to follow it. */
     public record Trip(Instant pickupAt, String pickupAddress, String dropoffAddress, String currency,
-                       String accessToken) {}
+                       String accessToken, String timezone) {}
 }

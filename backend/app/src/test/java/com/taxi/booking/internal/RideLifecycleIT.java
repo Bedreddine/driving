@@ -165,6 +165,53 @@ class RideLifecycleIT extends IntegrationTest {
         assertThat(price(past, "final_price")).isEqualByComparingTo("35");
     }
 
+    @Test
+    void acceptingWarnsWhenTheDriverCannotMakeItFromThePreviousRide() throws Exception {
+        var first = bookId(clientToken, ride(slot(10)));
+        act(first, "accept", ownerToken, null, 204); // ends 10:15, reserved until 10:30
+        var next = bookId(clientToken, ride(slot(10.6)));  // 10:36, booked before `first` was accepted would be fine
+
+        when(routing.route(any(), any())).thenReturn(new RoutingClient.Route(20_000, 2400, false)); // 40 min apart
+        assertThat(actError(next, "accept", ownerToken, null, 409)).isEqualTo("TIGHT_SCHEDULE");
+        assertThat(actError(next, "propose-price", ownerToken, Map.of("price", 50), 409)).isEqualTo("TIGHT_SCHEDULE");
+        assertThat(status(next)).isEqualTo("requested");
+
+        call(post("/api/rides/" + next + "/accept?override=true"), ownerToken, null, 204); // the driver knows a shortcut
+        assertThat(status(next)).isEqualTo("accepted");
+    }
+
+    @Test
+    void acceptingWarnsAboutTimeOff() throws Exception {
+        var id = bookId(clientToken, ride(slot(34.5)));
+        call(post("/api/driver/time-off"), ownerToken, Map.of("starts_at", slot(34).toString(), "ends_at", slot(36).toString()), 201);
+        assertThat(actError(id, "accept", ownerToken, null, 409)).isEqualTo("DRIVER_UNAVAILABLE");
+    }
+
+    @Test
+    void customersCannotCancelOncePickupTimeHasCome() throws Exception {
+        var past = rawRide("accepted", Instant.now().minus(Duration.ofMinutes(5)), contactOf(clientId));
+        assertThat(actError(past, "cancel", clientToken, null, 400)).isEqualTo("TOO_LATE_TO_CANCEL");
+        act(past, "no-show", ownerToken, null, 204); // the driver can still record what happened
+    }
+
+    @Test
+    void aRequestIsNeverBornExpired() {
+        var now = Instant.parse("2027-01-12T10:00:00Z");
+        // Short notice (pickup in 1 h): the driver still gets 30 minutes to answer.
+        assertThat(BookingService.answerDeadline(now, now.plus(Duration.ofHours(1)))).isEqualTo(now.plus(Duration.ofMinutes(30)));
+        // Pickup in 10 minutes: never after the pickup itself.
+        assertThat(BookingService.answerDeadline(now, now.plus(Duration.ofMinutes(10)))).isEqualTo(now.plus(Duration.ofMinutes(10)));
+        // Normal cases unchanged: 2 h before pickup, or 24 h after the request.
+        assertThat(BookingService.answerDeadline(now, now.plus(Duration.ofHours(5)))).isEqualTo(now.plus(Duration.ofHours(3)));
+        assertThat(BookingService.answerDeadline(now, now.plus(Duration.ofDays(5)))).isEqualTo(now.plus(Duration.ofHours(24)));
+    }
+
+    @Test
+    void bookingsMoreThanAYearAheadAreRefused() throws Exception {
+        var r = book(clientToken, ride(Instant.now().plus(Duration.ofDays(400))));
+        assertThat(r.get("errors").toString()).contains("TOO_FAR_AHEAD");
+    }
+
     // ------------------------------------------------------------------ jobs
 
     @Test
@@ -214,6 +261,27 @@ class RideLifecycleIT extends IntegrationTest {
         assertThat(call(get("/api/notifications"), ownerToken, null, 200).get(0).get("kind").asString())
                 .isEqualTo("ride_cancelled_by_customer");
         call(post("/api/auth/login"), null, Map.of("email", "client@taxi.test", "password", "password123"), 401);
+    }
+
+    @Test
+    void theBackOfficeErasesAPhoneCustomerOnRequest() throws Exception {
+        var phoneOnly = UUID.fromString(call(post("/api/contacts"), ownerToken,
+                Map.of("full_name", "Phone Person", "phone", "+33622222222", "notice_given", true), 201).get("id").asString());
+        var open = rawRide("requested", slot(12), phoneOnly);
+        var done = rawRide("completed", Instant.now().minus(Duration.ofDays(3)), phoneOnly);
+
+        call(post("/api/admin/contacts/" + phoneOnly + "/forget"), clientToken, null, 403);
+        call(post("/api/admin/contacts/" + phoneOnly + "/forget"), ownerToken, null, 204);
+
+        assertThat(status(open)).isEqualTo("cancelled");
+        assertThat(contacts.find(phoneOnly).orElseThrow().fullName()).isEqualTo("Deleted customer");
+        assertThat(rides.find(done).orElseThrow().pickupAddress()).isEqualTo("(address removed)");
+        assertThat(errorOf(post("/api/admin/contacts/" + contactOf(clientId) + "/forget"), ownerToken, null, 400))
+                .isEqualTo("HAS_ACCOUNT"); // account holders delete their own account in the app
+        // An erased record can no longer be linked to an account
+        assertThat(errorOf(post("/api/admin/contact-links"), ownerToken,
+                Map.of("account_contact_id", contactOf(clientId).toString(), "existing_contact_id", phoneOnly.toString()), 400))
+                .isEqualTo("BAD_LINK");
     }
 
     @Test

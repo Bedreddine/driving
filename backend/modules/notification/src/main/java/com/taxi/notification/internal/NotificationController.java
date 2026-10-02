@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,10 +25,12 @@ class NotificationController {
 
     private final NotificationRepository repo;
     private final CurrentUser currentUser;
+    private final JsonMapper json;
 
-    NotificationController(NotificationRepository repo, CurrentUser currentUser) {
+    NotificationController(NotificationRepository repo, CurrentUser currentUser, JsonMapper json) {
         this.repo = repo;
         this.currentUser = currentUser;
+        this.json = json;
     }
 
     @PostMapping("/api/push-tokens")
@@ -41,9 +45,15 @@ class NotificationController {
         repo.deleteToken(body.token(), currentUser.id());
     }
 
+    /** payload is returned as a JSON object, not as text. */
+    record View(long id, java.util.UUID rideId, String kind, JsonNode payload, java.time.OffsetDateTime createdAt,
+                java.time.OffsetDateTime readAt) {}
+
     @GetMapping("/api/notifications")
-    List<NotificationRepository.Notification> list() {
-        return repo.forUser(currentUser.id(), 100);
+    List<View> list() {
+        return repo.forUser(currentUser.id(), 100).stream()
+                .map(n -> new View(n.id(), n.rideId(), n.kind(), json.readTree(n.payload()), n.createdAt(), n.readAt()))
+                .toList();
     }
 
     @PostMapping("/api/notifications/{id}/read")

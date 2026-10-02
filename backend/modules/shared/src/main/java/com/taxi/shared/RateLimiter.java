@@ -1,4 +1,4 @@
-package com.taxi.booking.internal;
+package com.taxi.shared;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -11,10 +11,10 @@ import org.springframework.stereotype.Component;
 
 /**
  * Counts actions per visitor (IP address) in a sliding window, to stop scripts flooding the public
- * booking website. In memory: enough for one server; resets on restart.
+ * booking website or guessing passwords. In memory: enough for one server; resets on restart.
  */
 @Component
-class RateLimiter {
+public class RateLimiter {
 
     private final Map<String, Deque<Instant>> hits = new ConcurrentHashMap<>();
     private final Clock clock;
@@ -24,7 +24,7 @@ class RateLimiter {
     }
 
     /** True if the action is allowed (and counts it), false if the limit is reached. */
-    boolean allow(String key, int max, Duration window) {
+    public boolean allow(String key, int max, Duration window) {
         var now = clock.instant();
         var times = hits.computeIfAbsent(key, k -> new ArrayDeque<>());
         synchronized (times) {

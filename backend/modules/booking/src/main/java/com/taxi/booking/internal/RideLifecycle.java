@@ -147,6 +147,10 @@ class RideLifecycle {
 
     private void cancelByCustomer(Ride r, String reason) {
         requireStatus(r, REQUESTED, PRICE_PROPOSED, ACCEPTED);
+        // From pickup time on, the driver is on the way or waiting: completed or no-show, not a cancellation.
+        if (!clock.instant().isBefore(r.pickup())) {
+            throw ApiException.badRequest("TOO_LATE_TO_CANCEL");
+        }
         change(r, CANCELLED, cols("cancel_reason", blankToNull(reason), "answer_deadline", null), reason);
         notices.about(r).tellDriver("ride_cancelled_by_customer").tellCustomer("ride_cancelled_confirmation").publish();
     }
@@ -219,7 +223,16 @@ class RideLifecycle {
     /** Account deletion: cancel open rides (telling the driver), keep past rides without personal data. */
     @Transactional
     public void forgetCustomer(UUID userId) {
-        var contact = contacts.byUser(userId);
+        contacts.byUser(userId).ifPresent(c -> forgetContact(c.id()));
+    }
+
+    /**
+     * Erases one customer (account deletion, or a phone / guest customer asking the business, GDPR):
+     * open rides are cancelled, past rides stay for accounting without personal data.
+     */
+    @Transactional
+    public void forgetContact(UUID contactId) {
+        var contact = contacts.find(contactId);
         if (contact.isEmpty()) {
             return;
         }

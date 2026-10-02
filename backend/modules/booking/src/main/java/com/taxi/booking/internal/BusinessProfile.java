@@ -21,21 +21,39 @@ class BusinessProfile implements Business {
 
     record Body(@NotBlank @Size(max = 80) String name, @NotBlank @Size(max = 160) String taglineFr,
                 @NotBlank @Size(max = 160) String taglineEn, @Size(max = 40) String phone,
-                @Size(max = 200) String email, @Size(max = 300) @Pattern(regexp = URL) String siteUrl,
+                @jakarta.validation.constraints.Email @Size(max = 200) String email, @Size(max = 300) @Pattern(regexp = URL) String siteUrl,
                 @Size(max = 300) @Pattern(regexp = URL) String appStoreUrl,
                 @Size(max = 300) @Pattern(regexp = URL) String playStoreUrl) {}
 
-    private final JdbcClient jdbc;
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(BusinessProfile.class);
 
-    BusinessProfile(JdbcClient jdbc) {
+    private final JdbcClient jdbc;
+    private final String defaultSiteUrl;
+
+    /**
+     * @param defaultSiteUrl address of the booking website from the server settings (SITE_URL), used while the
+     *                       back office has none, so emailed links always work
+     */
+    BusinessProfile(JdbcClient jdbc, @org.springframework.beans.factory.annotation.Value("${taxi.public.site-url:}") String defaultSiteUrl) {
         this.jdbc = jdbc;
+        this.defaultSiteUrl = blankToNull(defaultSiteUrl);
+    }
+
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    void warnWithoutSiteUrl() {
+        if (info().siteUrl() == null) {
+            log.warn("No booking website address (back office or SITE_URL): emails to guests will have no link to their ride.");
+        }
     }
 
     @Override
     public Info info() {
-        return jdbc.sql("""
+        var i = jdbc.sql("""
                 select name, tagline_fr, tagline_en, phone, email, site_url, app_store_url, play_store_url
                 from business_profile""").query(Info.class).single();
+        return i.siteUrl() != null || defaultSiteUrl == null ? i
+                : new Info(i.name(), i.taglineFr(), i.taglineEn(), i.phone(), i.email(), defaultSiteUrl,
+                        i.appStoreUrl(), i.playStoreUrl());
     }
 
     /** Public: the booking website shows the name, tagline and contact. */

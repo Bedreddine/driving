@@ -89,8 +89,12 @@ export const book = (ride: BookingInput, override = false) => api.post<BookingRe
 
 const act = (id: string, action: string, body?: unknown) => api.post<void>(`/api/rides/${id}/${action}`, body);
 
-export const acceptRide = (id: string) => act(id, 'accept');
-export const proposePrice = (id: string, price: number) => act(id, 'propose-price', { price });
+/** override: accept despite a schedule warning (TIGHT_SCHEDULE, DRIVER_UNAVAILABLE). */
+export const acceptRide = (id: string, override = false) => act(id, override ? 'accept?override=true' : 'accept');
+export const proposePrice = (id: string, price: number, override = false) =>
+  act(id, override ? 'propose-price?override=true' : 'propose-price', { price });
+/** Back office: erase a phone / guest customer on request (GDPR). */
+export const forgetContact = (contactId: string) => api.post<void>(`/api/admin/contacts/${contactId}/forget`);
 export const declineRide = (id: string, reason?: string) => act(id, 'decline', { reason: reason ?? null });
 export const respondToPrice = (id: string, accept: boolean) => act(id, 'respond', { accept });
 export const cancelRide = (id: string, reason?: string) => act(id, 'cancel', { reason: reason ?? null });

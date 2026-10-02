@@ -10,7 +10,7 @@ import { type BusinessInfo, getBusiness } from '@/lib/publicApi';
 import { useNow } from '@/lib/useNow';
 import { whatsappMessage, whatsappUrl } from '@/lib/whatsapp';
 import { StatusBadge } from './RideCard';
-import { Button, Card, ErrorText, Field, Label, Muted, Row, styles } from './ui';
+import { Button, Card, colors, ErrorText, Field, Label, Muted, Row, styles } from './ui';
 
 type Props = { ride: Ride; as: 'customer' | 'driver'; onChanged: () => void; licence?: 'vtc' | 'taxi' };
 
@@ -33,6 +33,8 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
   const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'none' | 'propose' | 'complete' | 'cancel' | 'decline'>('none');
   const [business, setBusiness] = useState<BusinessInfo | null>(null);
+  // A schedule warning the driver may override ("I know a shortcut"): which action to retry.
+  const [warning, setWarning] = useState<{ code: string; retry: () => Promise<void> } | null>(null);
 
   useEffect(() => {
     if (as === 'driver') void getBusiness().then(setBusiness).catch(() => undefined);
@@ -43,9 +45,10 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
   const canClose = now >= pickup;
   const canNoShow = now >= pickup + ride.pickup_allowance_min * 60_000;
 
-  const run = async (name: string, fn: () => Promise<void>) => {
+  const run = async (name: string, fn: () => Promise<void>, overridable?: () => Promise<void>) => {
     setBusy(name);
     setError(null);
+    setWarning(null);
     try {
       await fn();
       setMode('none');
@@ -53,19 +56,24 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
       setReason('');
       onChanged();
     } catch (e) {
-      setError(err((e as Error).message));
+      const code = (e as Error).message;
+      if (overridable && (code === 'TIGHT_SCHEDULE' || code === 'DRIVER_UNAVAILABLE')) {
+        setWarning({ code, retry: overridable });
+      } else {
+        setError(err(code));
+      }
     } finally {
       setBusy(null);
     }
   };
 
-  const withPrice = (fn: (p: number) => Promise<void>) => () => {
+  const withPrice = (fn: (p: number, override: boolean) => Promise<void>) => () => {
     const p = parsePrice(price);
     if (p === null) {
       setError(err('BAD_INPUT'));
       return;
     }
-    void run('price', () => fn(p));
+    void run('price', () => fn(p, false), () => fn(p, true));
   };
 
   return (
@@ -137,11 +145,29 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
       ) : null}
 
       <ErrorText>{error}</ErrorText>
+      {warning ? (
+        <Card style={{ borderColor: colors.warning, borderWidth: 2 }}>
+          <Text style={styles.text}>⚠ {err(warning.code)}</Text>
+          <Button
+            kind="secondary"
+            title={t('overrideConfirm')}
+            loading={busy === 'override'}
+            onPress={() => {
+              const retry = warning.retry;
+              void run('override', retry);
+            }}
+          />
+        </Card>
+      ) : null}
 
       {/* ---------------- Driver actions ---------------- */}
       {as === 'driver' && ride.status === 'requested' && mode === 'none' ? (
         <View style={{ gap: 8 }}>
-          <Button title={t('accept')} loading={busy === 'accept'} onPress={() => run('accept', () => api.acceptRide(ride.id))} />
+          <Button
+            title={t('accept')}
+            loading={busy === 'accept'}
+            onPress={() => run('accept', () => api.acceptRide(ride.id), () => api.acceptRide(ride.id, true))}
+          />
           {licence === 'vtc' ? (
             <Button kind="secondary" title={t('proposePrice')} onPress={() => setMode('propose')} />
           ) : null}
@@ -151,7 +177,7 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
       {as === 'driver' && mode === 'propose' ? (
         <Card>
           <Field label={t('price')} value={price} onChangeText={setPrice} keyboardType="decimal-pad" autoFocus />
-          <Button title={t('proposePrice')} loading={busy === 'price'} onPress={withPrice((p) => api.proposePrice(ride.id, p))} />
+          <Button title={t('proposePrice')} loading={busy === 'price'} onPress={withPrice((p, override) => api.proposePrice(ride.id, p, override))} />
           <Button kind="secondary" title={t('back')} onPress={() => setMode('none')} />
         </Card>
       ) : null}

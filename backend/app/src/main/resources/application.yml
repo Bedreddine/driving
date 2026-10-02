@@ -18,6 +18,19 @@ spring:
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
+      mail.smtp.connectiontimeout: 10000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
+  http:
+    clients:
+      # Calls to outside services (Expo push...) give up instead of hanging.
+      connect-timeout: 5s
+      read-timeout: 15s
+  task:
+    scheduling:
+      pool:
+        # Background jobs run side by side: a slow mail server never holds up expiry or reminders.
+        size: 4
   docker:
     compose:
       # `./gradlew :app:bootRun` starts PostgreSQL from app/compose.yaml automatically (development only).
@@ -46,7 +59,14 @@ taxi:
     # Sender address of customer emails (the SMTP server is set with SPRING_MAIL_*, see spring.mail above).
     from: ${MAIL_FROM:no-reply@localhost}
     reply-to: ${MAIL_REPLY_TO:}
+  auth:
+    # Against password guessing and scripted sign-ups.
+    max-signups-per-hour: 10
+    max-logins-per-hour: 50
+    max-logins-per-account-per-15-min: 10
   public:
+    # Address of the booking website, used in emailed links while none is set in the back office.
+    site-url: ${SITE_URL:}
     # Booking website (QR code) limits per visitor IP and per hour, against spam.
     max-bookings-per-hour: 10
     max-quotes-per-hour: 60

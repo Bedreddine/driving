@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 class ContactController {
 
     record NewContact(@NotBlank @Size(max = 200) String fullName, @Size(max = 40) String phone,
-                      @Size(max = 200) String email, Boolean noticeGiven) {}
+                      @jakarta.validation.constraints.Email @Size(max = 200) String email, Boolean noticeGiven) {}
 
     record Notes(@NotNull @Size(max = 5000) String notes) {}
 
@@ -34,11 +34,14 @@ class ContactController {
     private final ContactRepository contacts;
     private final DriverRepository drivers;
     private final CurrentUser currentUser;
+    private final RideLifecycle lifecycle;
 
-    ContactController(ContactRepository contacts, DriverRepository drivers, CurrentUser currentUser) {
+    ContactController(ContactRepository contacts, DriverRepository drivers, CurrentUser currentUser,
+                      RideLifecycle lifecycle) {
         this.contacts = contacts;
         this.drivers = drivers;
         this.currentUser = currentUser;
+        this.lifecycle = lifecycle;
     }
 
     @GetMapping("/api/contacts")
@@ -83,10 +86,22 @@ class ContactController {
     void link(@RequestBody @Valid LinkBody body) {
         var account = contacts.find(body.accountContactId()).orElseThrow(ApiException::notFound);
         var existing = contacts.find(body.existingContactId()).orElseThrow(ApiException::notFound);
-        if (account.userId() == null || existing.userId() != null || account.id().equals(existing.id())) {
+        if (account.userId() == null || existing.userId() != null || account.id().equals(existing.id())
+                || contacts.isAnonymized(existing.id())) {
             throw ApiException.badRequest("BAD_LINK");
         }
         contacts.link(account, existing);
+    }
+
+    /** Back office: erase a customer on request (GDPR). Accounts are deleted by their owner in the app. */
+    @PostMapping("/api/admin/contacts/{id}/forget")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void forget(@PathVariable UUID id) {
+        var contact = contacts.find(id).orElseThrow(ApiException::notFound);
+        if (contact.userId() != null) {
+            throw ApiException.badRequest("HAS_ACCOUNT");
+        }
+        lifecycle.forgetContact(id);
     }
 
     private void requireStaff() {

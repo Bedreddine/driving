@@ -7,8 +7,9 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.example.taxiapp"
+      "supportsTablet": false,
+      "bundleIdentifier": "com.example.taxiapp",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +19,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.example.taxiapp"
+      "package": "com.example.taxiapp",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png",

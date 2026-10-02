@@ -22,7 +22,7 @@ export function DateTimeField({ label, value, onChange }: { label: string; value
     DateTimePickerAndroid.open({
       value: toPickerDate(value),
       mode: 'date',
-      minimumDate: new Date(),
+      minimumDate: toPickerDate(new Date().toISOString()),
       onChange: (e, date) => {
         if (e.type !== 'set' || !date) return;
         DateTimePickerAndroid.open({
@@ -51,7 +51,7 @@ export function DateTimeField({ label, value, onChange }: { label: string; value
           value={toPickerDate(value)}
           mode="datetime"
           display="inline"
-          minimumDate={new Date()}
+          minimumDate={toPickerDate(new Date().toISOString())}
           minuteInterval={5}
           locale={lang === 'en' ? 'en-GB' : 'fr-FR'}
           onChange={(_e, date) => date && onChange(fromPickerDate(date))}

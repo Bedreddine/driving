@@ -29,7 +29,7 @@ export default function SignIn() {
   };
 
   return (
-    <Screen>
+    <Screen top>
       <Title>🚕 {t('appName')}</Title>
       <Field label={t('email')} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
       <Field label={t('password')} value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" />

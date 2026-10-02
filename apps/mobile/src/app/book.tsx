@@ -1,4 +1,4 @@
-import { Stack, useRouter } from 'expo-router';
+import { Link, Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { AddressInput } from '@/components/AddressInput';
@@ -7,7 +7,8 @@ import { PremiumCard, PremiumShell } from '@/components/PremiumShell';
 import { Button, colors, ErrorText, Field, Row, serif, Stepper, styles, Toggle } from '@/components/ui';
 import type { BookingInput, BookingResult, DriverInfo, Place } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { formatKm, formatMinutes, formatPrice } from '@/lib/format';
+import { formatDateTime, formatKm, formatMinutes, formatPrice } from '@/lib/format';
+import { rememberGuestRide, savedGuestRides, type SavedGuestRide } from '@/lib/guestRides';
 import { type BusinessInfo, getBusiness, getPublicDriver, guestBook, guestQuote } from '@/lib/publicApi';
 
 const PHONE = /^\+?[0-9 .\-()]{6,30}$/;
@@ -42,6 +43,10 @@ export default function PublicBooking() {
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState<'quote' | 'book' | null>(null);
   const [answer, setAnswer] = useState<{ key: string; quote?: BookingResult; error?: string } | null>(null);
+  // Earlier bookings made on this device (still upcoming), with their private links.
+  const [mine] = useState<SavedGuestRide[]>(() =>
+    savedGuestRides().filter((r) => new Date(r.pickup_at).getTime() > Date.now() - 6 * 3600_000),
+  );
 
   useEffect(() => {
     void getBusiness().then(setBusiness).catch(() => undefined);
@@ -94,6 +99,7 @@ export default function PublicBooking() {
     try {
       const r = await guestBook(client, ride);
       if (r.ok && r.access_token) {
+        rememberGuestRide({ token: r.access_token, pickup_at: ride.pickup_at, from: ride.pickup.address, to: ride.dropoff.address });
         router.replace({ pathname: '/b/[token]', params: { token: r.access_token } });
         return;
       }
@@ -109,6 +115,16 @@ export default function PublicBooking() {
     <>
       <Stack.Screen options={{ headerShown: false, title: business?.name ?? t('bookYourChauffeur') }} />
       <PremiumShell business={business}>
+        {mine.length > 0 ? (
+          <PremiumCard title={t('myRides')}>
+            {mine.map((r) => (
+              <Link key={r.token} href={{ pathname: '/b/[token]', params: { token: r.token } }} style={styles.text}>
+                {formatDateTime(r.pickup_at, lang)} · {r.from.split(',')[0]} → {r.to.split(',')[0]}
+              </Link>
+            ))}
+          </PremiumCard>
+        ) : null}
+
         <Text style={{ fontFamily: serif, color: '#FFFFFF', fontSize: 24, textAlign: 'center' }}>
           {t('bookYourChauffeur')}
         </Text>

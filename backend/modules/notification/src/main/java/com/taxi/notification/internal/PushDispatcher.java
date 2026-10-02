@@ -40,6 +40,7 @@ class PushDispatcher {
         this.repo = repo;
         this.users = users;
         this.json = json;
+        // Timeouts come from spring.http.clients.* (application.yml): a slow Expo never blocks the other jobs.
         this.http = builder.baseUrl(expoUrl).build();
         this.enabled = enabled;
     }

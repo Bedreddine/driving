@@ -34,10 +34,12 @@ class Notices {
 
     Change about(Ride ride) {
         var contact = contacts.find(ride.contactId()).orElseThrow();
-        var driver = drivers.find(ride.driverId()).map(DriverRepository.Driver::userId).orElse(null);
+        var driverRow = drivers.find(ride.driverId());
+        var driver = driverRow.map(DriverRepository.Driver::userId).orElse(null);
+        var timezone = driverRow.map(DriverRepository.Driver::timezone).orElse("Europe/Paris");
         var customer = new RideChanged.Customer(contact.fullName(), contact.email(), contact.phone(), contact.language());
         var trip = new RideChanged.Trip(ride.pickup(), ride.pickupAddress(), ride.dropoffAddress(), ride.currency(),
-                ride.accessToken());
+                ride.accessToken(), timezone);
         return new Change(ride.id(), contact.userId(), driver, customer, trip);
     }
 

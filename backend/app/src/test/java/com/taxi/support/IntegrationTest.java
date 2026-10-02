@@ -34,6 +34,9 @@ import tools.jackson.databind.json.JsonMapper;
         "taxi.push.enabled=false",
         "taxi.public.max-bookings-per-hour=1000",
         "taxi.public.max-quotes-per-hour=1000",
+        "taxi.auth.max-signups-per-hour=100000",
+        "taxi.auth.max-logins-per-hour=100000",
+        "taxi.auth.max-logins-per-account-per-15-min=100000",
 })
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)

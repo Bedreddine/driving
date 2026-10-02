@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
+import com.taxi.shared.RateLimiter;
 import com.taxi.support.IntegrationTest;
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -144,9 +145,11 @@ class GuestBookingIT extends IntegrationTest {
     @Test
     void aReturningGuestKeepsOneCustomerRecord() throws Exception {
         token(guestBook(VIP, ride(slot(10)), false));
-        token(guestBook(client("John Smith", "+44 7700 900123", "SMITH@example.com", "fr"), ride(slot(58)), false));
+        // Same person, phone typed differently: still one record. The name the driver knows is kept
+        // (whoever knows someone's email and phone must not be able to rename them); the language follows.
+        token(guestBook(client("Someone Else", "+447700900123", "SMITH@example.com", "fr"), ride(slot(58)), false));
         var contacts = jdbc.sql("select full_name, language from contacts where lower(email) = 'smith@example.com'").query().listOfRows();
-        assertThat(contacts).singleElement().satisfies(c -> assertThat(c).containsEntry("full_name", "John Smith").containsEntry("language", "fr"));
+        assertThat(contacts).singleElement().satisfies(c -> assertThat(c).containsEntry("full_name", "Mr Smith").containsEntry("language", "fr"));
 
         // A different phone with the same email is another person (or a typo): a separate record, the driver can link them.
         token(guestBook(client("Mrs Smith", "+44 7700 900999", "smith@example.com", "en"), ride(slot(82)), false));

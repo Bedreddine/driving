@@ -25,7 +25,6 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -47,11 +46,21 @@ class SecurityConfig {
                 .authorizeHttpRequests(a -> a
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**", "/api/public/**", "/actuator/health", "/ws").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**", "/actuator/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(o -> o.jwt(j -> j.decoder(decoder).jwtAuthenticationConverter(converter())))
-                .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));
+                .exceptionHandling(e -> e
+                        .authenticationEntryPoint((req, res, ex) -> writeError(res, HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED"))
+                        .accessDeniedHandler((req, res, ex) -> writeError(res, HttpStatus.FORBIDDEN, "FORBIDDEN")));
         return http.build();
+    }
+
+    /** Same {"error": CODE} body as the rest of the API, also for requests refused by security. */
+    private static void writeError(jakarta.servlet.http.HttpServletResponse res, HttpStatus status, String code)
+            throws java.io.IOException {
+        res.setStatus(status.value());
+        res.setContentType("application/json");
+        res.getWriter().write("{\"error\":\"" + code + "\"}");
     }
 
     private JwtAuthenticationConverter converter() {

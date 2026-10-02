@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { Button, Card, ErrorText, Field, Label, Muted, Row, styles, Title } from '@/components/ui';
-import { linkContacts } from '@/lib/api';
+import { forgetContact, linkContacts } from '@/lib/api';
+import { confirmAsk } from '@/lib/confirm';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/http';
 
@@ -106,6 +107,22 @@ export default function AdminContacts() {
             <Muted>{[selected.phone, selected.email].filter(Boolean).join(' · ')}</Muted>
             <Field label={t('notes')} value={notes} onChangeText={setNotes} multiline />
             <Button title={t('save')} onPress={saveNotes} />
+            {!selected.user_id ? (
+              <Button
+                kind="danger"
+                title={t('forgetContact')}
+                onPress={async () => {
+                  if (!(await confirmAsk(t('forgetContactConfirm'), t('delete'), t('back')))) return;
+                  try {
+                    await forgetContact(selected.id);
+                    setSelected(null);
+                    await load();
+                  } catch (e) {
+                    setError(err((e as Error).message));
+                  }
+                }}
+              />
+            ) : null}
           </Card>
         ) : null}
       </Row>

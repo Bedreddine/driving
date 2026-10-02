@@ -66,7 +66,8 @@ async function send(method: string, path: string, body: unknown, token: string |
 
 // One refresh at a time, even if several requests got 401 together.
 let refreshing: Promise<boolean> | null = null;
-function refresh(): Promise<boolean> {
+/** Gets a new access token with the refresh token. False (and signed out) if the session is over. */
+export function refresh(): Promise<boolean> {
   if (!tokens) return Promise.resolve(false);
   refreshing ??= send('POST', '/api/auth/refresh', { refresh_token: tokens.refresh_token }, null)
     .then(async (res) => {

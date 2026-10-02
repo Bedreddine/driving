@@ -1,6 +1,7 @@
 package com.taxi.booking.internal;
 
 import com.taxi.identity.IdentityEvents.OwnerAssigned;
+import com.taxi.identity.IdentityEvents.ProfileUpdated;
 import com.taxi.identity.IdentityEvents.UserDeleting;
 import com.taxi.identity.IdentityEvents.UserRegistered;
 import com.taxi.pricing.Pricing;
@@ -28,7 +29,12 @@ class AccountListener {
     /** Every new account gets a customer contact, so its rides have someone to belong to. */
     @EventListener
     void on(UserRegistered e) {
-        contacts.insert(e.userId(), e.fullName(), e.phone(), e.email(), true, e.userId());
+        contacts.insert(e.userId(), e.fullName(), e.phone(), e.email(), true, e.userId(), e.language());
+    }
+
+    @EventListener
+    void on(ProfileUpdated e) {
+        contacts.updateFromProfile(e.userId(), e.fullName(), e.phone(), e.language());
     }
 
     @EventListener

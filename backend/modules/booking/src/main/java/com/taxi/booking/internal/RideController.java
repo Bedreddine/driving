@@ -97,16 +97,32 @@ class RideController {
         return rides.requestConflicts(currentUser.isAdmin(), driverId);
     }
 
+    /** ?override=true accepts despite a schedule warning (TIGHT_SCHEDULE, DRIVER_UNAVAILABLE). */
     @PostMapping("/api/rides/{id}/accept")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void accept(@PathVariable UUID id) {
+    void accept(@PathVariable UUID id, @RequestParam(defaultValue = "false") boolean override) {
+        checkSchedule(id, override);
         lifecycle.accept(id);
     }
 
     @PostMapping("/api/rides/{id}/propose-price")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void propose(@PathVariable UUID id, @RequestBody @Valid PriceBody body) {
+    void propose(@PathVariable UUID id, @RequestBody @Valid PriceBody body,
+                 @RequestParam(defaultValue = "false") boolean override) {
+        checkSchedule(id, override);
         lifecycle.proposePrice(id, body.price());
+    }
+
+    private void checkSchedule(UUID rideId, boolean override) {
+        if (!currentUser.isStaff()) {
+            throw ApiException.forbidden();
+        }
+        if (!override) {
+            var warnings = booking.scheduleWarnings(rideId);
+            if (!warnings.isEmpty()) {
+                throw ApiException.conflict(warnings.getFirst());
+            }
+        }
     }
 
     @PostMapping("/api/rides/{id}/decline")
