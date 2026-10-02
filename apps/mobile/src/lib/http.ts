@@ -1,8 +1,13 @@
 // Talks to the Spring Boot API. Keeps the login tokens and renews the short-lived access token
 // with the refresh token when the server answers 401.
+import { Platform } from 'react-native';
 import { authStorage } from './storage';
 
-const baseUrl = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/$/, '');
+// Phone apps need the full API address (EXPO_PUBLIC_API_URL). The website may leave it empty: it then calls
+// the API on its own address (the Docker setup serves both behind one nginx), so one build works on any domain.
+const configured = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/$/, '');
+const sameOrigin = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : '';
+const baseUrl = configured || sameOrigin;
 if (!baseUrl) {
   throw new Error('Missing EXPO_PUBLIC_API_URL. Copy .env.example to .env.');
 }

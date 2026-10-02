@@ -98,6 +98,35 @@ All JSON is snake_case. Errors come back as `{"error": "CODE"}` (e.g. `SLOT_TAKE
 3. **Working hours, zones, fixed prices, surcharges:** back office.
 4. **Business profile and QR code:** back office → Entreprise. Set the website address **before printing cards**: the QR code points to `<website>/book`, and email links use the same address. Download the QR code as a high-resolution PNG for the printer.
 
+## Run everything with Docker
+
+One command runs the database, the backend API and the website (nothing else to install but Docker):
+
+```bash
+cp .env.example .env        # then set POSTGRES_PASSWORD and JWT_SECRET (openssl rand -base64 48)
+docker compose up -d --build
+```
+
+Open http://localhost:8080 (`/book` is the page the QR code opens). nginx serves the website and forwards `/api` and `/ws` to the backend, so everything lives on **one address** and the same images work on any domain.
+
+First-time setup of a fresh database:
+
+```bash
+# 1. sign up your own account on the website, then make it the owner (driver + back office):
+docker compose run --rm backend --taxi.make-owner=you@example.com --server.port=0
+# 2. sign in again, then set prices, hours and the business profile in the back office
+```
+
+| Command | What it does |
+|---|---|
+| `docker compose logs -f backend` | Follow the server log (emails are written there until SMTP is set) |
+| `docker compose up -d --build` | Update after a code change |
+| `docker compose down` | Stop (data is kept in the `pgdata` volume) |
+| `docker compose down -v` | Stop **and erase all data** |
+| `docker compose exec postgres pg_dump -U taxi taxi > backup.sql` | Back up the database |
+
+In production, put HTTPS in front (e.g. Caddy or your host's load balancer) pointing to `WEB_PORT`, and set `SITE_URL` to your `https://` domain. The phone apps are not built by Docker: they use EAS (see below).
+
 ## Put it online
 
 ```bash

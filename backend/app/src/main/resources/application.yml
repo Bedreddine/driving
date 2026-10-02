@@ -75,6 +75,10 @@ taxi:
     enabled: ${SMS_ENABLED:false}
 
 management:
+  health:
+    mail:
+      # A mail server being down must not mark the whole app unhealthy (emails are retried by the outbox).
+      enabled: false
   endpoints:
     web:
       exposure:

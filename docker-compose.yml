@@ -1,0 +1,61 @@
+# Runs the whole app: database, backend API and website.
+#   cp .env.example .env   (then set JWT_SECRET and the rest)
+#   docker compose up -d --build
+# Website + API: http://localhost:${WEB_PORT:-8080}  (put HTTPS in front in production, see README)
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: taxi
+      POSTGRES_USER: taxi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taxi -d taxi"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/taxi
+      DATABASE_USER: taxi
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (at least 32 random characters)}
+      SITE_URL: ${SITE_URL:-http://localhost:8080}
+      CORS_ORIGINS: ${SITE_URL:-http://localhost:8080}
+      FORWARD_HEADERS: framework # behind nginx: real visitor IP for the anti-spam limits
+      OSRM_URL: ${OSRM_URL:-https://router.project-osrm.org}
+      PUSH_ENABLED: ${PUSH_ENABLED:-true}
+      SMS_ENABLED: ${SMS_ENABLED:-false}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@localhost}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      SPRING_MAIL_HOST: ${SMTP_HOST:-}
+      SPRING_MAIL_PORT: ${SMTP_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SMTP_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SMTP_PASSWORD:-}
+    # No port published: only reachable through the website's nginx.
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/mobile/Dockerfile
+      args:
+        EXPO_PUBLIC_GEOCODER_URL: ${GEOCODER_URL:-https://photon.komoot.io}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+volumes:
+  pgdata:

@@ -4,7 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.mail.SimpleMailMessage;
@@ -28,8 +28,9 @@ class CustomerChannels {
 
     private static final Logger log = LoggerFactory.getLogger(CustomerChannels.class);
 
+    /** Only when an SMTP host is really set: an empty value (e.g. from docker compose) means "no server". */
     @Bean
-    @ConditionalOnProperty("spring.mail.host")
+    @ConditionalOnExpression("!'${spring.mail.host:}'.isBlank()")
     EmailSender smtpEmail(JavaMailSender mail, @Value("${taxi.mail.from}") String from,
                           @Value("${taxi.mail.reply-to:}") String replyTo) {
         return (to, subject, body) -> {
