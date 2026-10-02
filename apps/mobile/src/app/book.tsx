@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link, Stack, useRouter } from 'expo-router';
+import { Link, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
@@ -10,11 +10,12 @@ import { DateTimeField } from '@/components/DateTimeField';
 import { MapScene } from '@/components/map/MapScene';
 import { PARIS } from '@/components/map/shared';
 import { Chip, CountUp, Display, MonoLine, PlaceRow, PriceDetail, Rise, Section, Tabs } from '@/components/scene';
-import { ArrowRight, Button, Field, Muted, Notice, Stepper, Toggle } from '@/components/ui';
+import { ArrowRight, Button, Field, Icon, Muted, Notice, Stepper, Toggle } from '@/components/ui';
 import type { BookingInput, BookingResult, DriverInfo, Place } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDateTime, formatKm, formatMinutes, formatPrice, formatTime, fromWallClock, toWallClock } from '@/lib/format';
 import { reverseGeocode, searchAddress } from '@/lib/geocode';
+import { decodePlace, firstName, forgetDetails, forgetGuest, lastTrip, loadProfile, recentPlaces, rememberGuest } from '@/lib/guestProfile';
 import { rememberGuestRide, savedGuestRides, type SavedGuestRide } from '@/lib/guestRides';
 import { apiUrl } from '@/lib/http';
 import type { Lang } from '@/lib/i18n';
@@ -62,6 +63,20 @@ const placeShort = (p: Place) => SUGGESTED_PLACES.find((x) => x.address === p.ad
 export default function Experience() {
   const { t, err, lang } = useAuth();
   const router = useRouter();
+  // "Book this trip again" links: /book?from=lat,lng,address&to=…
+  const params = useLocalSearchParams<{ from?: string; to?: string }>();
+  const [linkedTrip] = useState(() => {
+    const from = decodePlace(params.from);
+    const to = decodePlace(params.to);
+    return from && to ? { from, to } : null;
+  });
+  // "Remember me on this device" (opt-in): details, recent places and the last trip, kept on the device only.
+  const [profile, setProfile] = useState(() => loadProfile());
+  const [recents, setRecents] = useState(() => recentPlaces());
+  const [again, setAgain] = useState(() => lastTrip());
+  const [remember, setRemember] = useState(() => !!loadProfile());
+  const [editDetails, setEditDetails] = useState(false);
+  const [forgot, setForgot] = useState(false);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const wide = width >= 900;
@@ -74,10 +89,10 @@ export default function Experience() {
     savedGuestRides().filter((r) => new Date(r.pickup_at).getTime() > Date.now() - 6 * 3600_000),
   );
 
-  const [stage, setStage] = useState<Stage>('landing');
+  const [stage, setStage] = useState<Stage>(() => (linkedTrip ? 'trip' : 'landing'));
   const [editing, setEditing] = useState<End>('from');
-  const [pickup, setPickup] = useState<Place | null>(null);
-  const [dropoff, setDropoff] = useState<Place | null>(null);
+  const [pickup, setPickup] = useState<Place | null>(() => linkedTrip?.from ?? null);
+  const [dropoff, setDropoff] = useState<Place | null>(() => linkedTrip?.to ?? null);
   const [tab, setTab] = useState<PlaceKind>('palace');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Place[] | null>(null);
@@ -92,9 +107,9 @@ export default function Experience() {
   const [meetGreet, setMeetGreet] = useState(false);
   const [travelRef, setTravelRef] = useState('');
   const [notes, setNotes] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const [name, setName] = useState(() => loadProfile()?.full_name ?? '');
+  const [phone, setPhone] = useState(() => loadProfile()?.phone ?? '');
+  const [email, setEmail] = useState(() => loadProfile()?.email ?? '');
   const [quote, setQuote] = useState<{ key: string; result?: BookingResult; error?: string } | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -230,6 +245,8 @@ export default function Experience() {
       const r = await guestBook(client, ride);
       if (r.ok && r.access_token) {
         rememberGuestRide({ token: r.access_token, pickup_at: ride.pickup_at, from: ride.pickup.address, to: ride.dropoff.address });
+        if (remember) rememberGuest({ full_name: client.full_name, phone: client.phone, email: client.email }, ride.pickup, ride.dropoff);
+        else forgetDetails();
         router.replace({ pathname: '/b/[token]', params: { token: r.access_token } });
         return;
       }
@@ -411,6 +428,34 @@ export default function Experience() {
               </Text>
             </Rise>
           ) : null}
+          {forgot ? (
+            <Rise index={1} style={{ marginTop: 14 }}>
+              <Notice tone="success">{t('forgotten')}</Notice>
+            </Rise>
+          ) : null}
+          {profile || (again && !forgot) ? (
+            <Rise index={1} style={{ marginTop: 14, gap: 10 }}>
+              {profile ? (
+                <Text style={{ fontFamily: fonts.semibold, fontSize: 16, color: night.text }}>
+                  {t('welcomeBack').replace('{name}', firstName(profile.full_name))}
+                  {again ? <Text style={{ fontFamily: fonts.body, color: night.label }}>{` ${t('bookAgainQ')}`}</Text> : null}
+                </Text>
+              ) : null}
+              {again ? (
+                <Button
+                  kind="secondary"
+                  icon="repeat"
+                  title={`${placeShort(again.from)} → ${placeShort(again.to)}`}
+                  accessibilityLabel={`${t('bookAgain')} · ${placeShort(again.from)} → ${placeShort(again.to)}`}
+                  onPress={() => {
+                    setPickup(again.from);
+                    setDropoff(again.to);
+                    setStage('trip');
+                  }}
+                />
+              ) : null}
+            </Rise>
+          ) : null}
           <Rise index={2} style={{ marginTop: 18 }}>
             <Button size="lg" title={t('whereTo')} onPress={() => edit('from')} trailing={<ArrowRight />} />
           </Rise>
@@ -447,6 +492,25 @@ export default function Experience() {
               {whatsapp ? (
                 <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: night.muted }} onPress={() => void Linking.openURL(`https://wa.me/${whatsapp}`)}>
                   WhatsApp
+                </Text>
+              ) : null}
+              {profile || again || recents.length ? (
+                <Text
+                  accessibilityRole="button"
+                  style={{ fontFamily: fonts.medium, fontSize: 13, color: night.muted, textDecorationLine: 'underline' }}
+                  onPress={() => {
+                    forgetGuest();
+                    setProfile(null);
+                    setRecents([]);
+                    setAgain(null);
+                    setRemember(false);
+                    setName('');
+                    setPhone('');
+                    setEmail('');
+                    setForgot(true);
+                  }}
+                >
+                  {t('forgetMe')}
                 </Text>
               ) : null}
               <Link href="/sign-in" style={{ fontFamily: fonts.medium, fontSize: 13, color: night.muted }}>
@@ -491,6 +555,7 @@ export default function Experience() {
                     onChoose={choose}
                     onPin={() => openPin()}
                     onMyLocation={useMyLocation}
+                    recents={recents}
                     locError={locError}
                     distanceTo={distanceTo}
                   />
@@ -563,28 +628,45 @@ export default function Experience() {
                     </Section>
 
                     <Section n={4} title={t('step_details')}>
-                      <View>
-                        <Field label={t('fullName')} value={name} onChangeText={setName} autoComplete="name" />
-                        <Field
-                          label={t('phone')}
-                          value={phone}
-                          onChangeText={setPhone}
-                          keyboardType="phone-pad"
-                          autoComplete="tel"
-                          placeholder="+33 6 12 34 56 78"
-                          mono
-                          error={phone.trim() && !phoneOk ? err('BAD_PHONE') : null}
-                        />
-                        <Field
-                          label={t('email')}
-                          value={email}
-                          onChangeText={setEmail}
-                          keyboardType="email-address"
-                          autoCapitalize="none"
-                          autoComplete="email"
-                          error={email.trim() && !emailOk ? err('BAD_EMAIL') : null}
-                        />
-                      </View>
+                      {profile && !editDetails ? (
+                        <View style={{ gap: 10 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 3, borderWidth: 1.5, borderColor: night.edge, backgroundColor: night.control }}>
+                            <Icon name="user-check" size={22} color={night.primary} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontFamily: fonts.semibold, fontSize: 16.5, color: night.text }}>{name}</Text>
+                              <Text style={{ fontFamily: fonts.mono, fontSize: 13.5, color: night.label }}>{phone}</Text>
+                              <Text style={{ fontFamily: fonts.body, fontSize: 14, color: night.label }}>{email}</Text>
+                            </View>
+                            <Button kind="secondary" size="sm" icon="edit-2" title={t('editDetails')} onPress={() => setEditDetails(true)} />
+                          </View>
+                          <Muted style={{ fontSize: 12.5 }}>{t('savedDetails')}</Muted>
+                        </View>
+                      ) : (
+                        <View>
+                          <Field label={t('fullName')} value={name} onChangeText={setName} autoComplete="name" />
+                          <Field
+                            label={t('phone')}
+                            value={phone}
+                            onChangeText={setPhone}
+                            keyboardType="phone-pad"
+                            autoComplete="tel"
+                            placeholder="+33 6 12 34 56 78"
+                            mono
+                            error={phone.trim() && !phoneOk ? err('BAD_PHONE') : null}
+                          />
+                          <Field
+                            label={t('email')}
+                            value={email}
+                            onChangeText={setEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            autoComplete="email"
+                            error={email.trim() && !emailOk ? err('BAD_EMAIL') : null}
+                          />
+                          <Toggle label={t('rememberMe')} value={remember} onChange={setRemember} />
+                          <Muted style={{ fontSize: 12.5 }}>{t('rememberHint')}</Muted>
+                        </View>
+                      )}
                     </Section>
 
                     {sendError ? <Notice tone="error">{sendError}</Notice> : null}
@@ -626,6 +708,7 @@ function WhereSheet(props: {
   onChoose: (p: Place) => void;
   onPin: () => void;
   onMyLocation: () => void;
+  recents: Place[];
   locError: boolean;
   distanceTo: (ll: LngLat) => string;
 }) {
@@ -680,6 +763,14 @@ function WhereSheet(props: {
           {props.locError ? <Notice tone="error">{t('locationRefused')}</Notice> : null}
           <PlaceRow icon="map" title={t('chooseOnMap')} detail={t('moveMapHint')} onPress={props.onPin} />
           <Muted style={{ fontSize: 12.5 }}>{t('tapMapHint')}</Muted>
+          {props.recents.length ? (
+            <View style={{ marginTop: 6 }}>
+              <MonoLine muted>{t('recent').toUpperCase()}</MonoLine>
+              {props.recents.map((p) => (
+                <PlaceRow key={p.address} icon="clock" title={placeName(p, lang)} detail={p.address.split(',').slice(1).join(',').trim()} distance={props.distanceTo([p.lng, p.lat])} onPress={() => props.onChoose(p)} />
+              ))}
+            </View>
+          ) : null}
           <View style={{ marginTop: 6 }}>
             <Tabs
               value={tab}

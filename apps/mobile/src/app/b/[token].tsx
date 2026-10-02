@@ -1,4 +1,4 @@
-import { Link, Stack, useLocalSearchParams } from 'expo-router';
+import { Link, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { Image, Linking, ScrollView, Text, useWindowDimensions, View } from 'react-native';
@@ -11,6 +11,7 @@ import { AboardMenu, Display, LiveDot, MonoLine, Rise, Timeline, type TimelineSt
 import { Body, Button, ErrorText, Loading, Muted } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { confirmAsk } from '@/lib/confirm';
+import { encodePlace } from '@/lib/guestProfile';
 import { formatDateTime, formatDay, formatKm, formatMinutes, formatPrice, formatTime } from '@/lib/format';
 import { apiUrl } from '@/lib/http';
 import type { TextKey } from '@/lib/i18n';
@@ -55,6 +56,7 @@ function timelineOf(ride: PublicRide, t: (k: TextKey) => string, lang: 'fr' | 'e
 export default function GuestRide() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const { t, err, lang } = useAuth();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const wide = width >= 900;
@@ -285,6 +287,22 @@ export default function GuestRide() {
               />
             ) : null}
             <Muted style={{ fontSize: 12 }}>{t('keepLink')}</Muted>
+            {ride.pickup && ride.dropoff ? (
+              <Button
+                kind="secondary"
+                icon="repeat"
+                title={t('bookAgain')}
+                onPress={() =>
+                  router.push({
+                    pathname: '/book',
+                    params: {
+                      from: encodePlace({ lat: ride.pickup!.lat, lng: ride.pickup!.lng, address: ride.pickup_address }),
+                      to: encodePlace({ lat: ride.dropoff!.lat, lng: ride.dropoff!.lng, address: ride.dropoff_address }),
+                    },
+                  })
+                }
+              />
+            ) : null}
             <Link href="/book" style={{ color: night.primary, fontFamily: fonts.semibold }}>
               {t('bookAnother')} →
             </Link>
