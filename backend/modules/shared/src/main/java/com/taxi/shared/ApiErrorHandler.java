@@ -56,8 +56,27 @@ class ApiErrorHandler {
     /** A database rule refused the data (unknown reference, constraint): the input was wrong. */
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<Map<String, String>> integrity(DataIntegrityViolationException e) {
-        log.info("Refused by a database constraint: {}", e.getMostSpecificCause().getMessage());
+        log.info("Refused by a database constraint: {}", constraintOf(e));
         return ResponseEntity.badRequest().body(Map.of("error", "BAD_INPUT"));
+    }
+
+    private static final java.util.regex.Pattern CONSTRAINT = java.util.regex.Pattern.compile("constraint \"([^\"]+)\"");
+
+    /**
+     * Which rule refused the data, without the data: PostgreSQL's message details quote the whole row
+     * ("Failing row contains (...)", "Key (email)=(...)"), which may hold a customer's name, email or phone.
+     */
+    static String constraintOf(DataIntegrityViolationException e) {
+        String state = null;
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof java.sql.SQLException sql) {
+                state = sql.getSQLState();
+                break;
+            }
+        }
+        var message = String.valueOf(e.getMostSpecificCause().getMessage());
+        var m = CONSTRAINT.matcher(message);
+        return "SQLSTATE " + state + (m.find() ? ", constraint " + m.group(1) : "");
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

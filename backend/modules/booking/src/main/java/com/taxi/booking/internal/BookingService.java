@@ -205,7 +205,8 @@ class BookingService {
         if (!errors.isEmpty() || (!warnings.isEmpty() && !override && !dryRun)) {
             return new BookingResult(false, null, dryRun, estimate.price(), estimate.currency(), estimate.fixed(),
                     policy.licence().value(), allowance, errors, warnings, errors.isEmpty(),
-                    clash.map(Ride::id).orElse(null), main.distanceM(), main.durationS(), main.estimated(), null,
+                    // Which ride is in the way: for the driver only (another customer's ride id is none of a client's business).
+                    quick ? clash.map(Ride::id).orElse(null) : null, main.distanceM(), main.durationS(), main.estimated(), null,
                     main.path(), estimate.breakdown());
         }
         if (dryRun) {

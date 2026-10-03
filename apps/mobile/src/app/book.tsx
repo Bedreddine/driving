@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ClientTopBar } from '@/components/ClientTopBar';
+import { LegalLinks } from '@/components/LegalScreen';
 import { hasVehicle, VehicleCard, VehicleGallery } from '@/components/Vehicle';
 import { DateTimeField } from '@/components/DateTimeField';
 import { MapScene } from '@/components/map/MapScene';
@@ -517,6 +518,7 @@ export default function Experience() {
                 {t('alreadyClient')}
               </Link>
             </View>
+            <LegalLinks />
           </Rise>
         </View>
       ) : (
@@ -679,7 +681,18 @@ export default function Experience() {
                       trailing={priced ? price(priced.estimate) : undefined}
                     />
                     {!clientOk ? <Muted>{t('fillDetailsHint')}</Muted> : null}
-                    <Muted style={{ fontSize: 12 }}>{t('privacyNote')}</Muted>
+                    <Muted style={{ fontSize: 12.5 }}>
+                      {t('acceptTerms')}{' '}
+                      <Link href="/terms" style={{ color: night.primary, textDecorationLine: 'underline' }}>
+                        {t('termsShort')}
+                      </Link>
+                    </Muted>
+                    <Muted style={{ fontSize: 12 }}>
+                      {t('privacyNote')}{' '}
+                      <Link href="/privacy" style={{ color: night.primary, textDecorationLine: 'underline' }}>
+                        {t('privacyShort')}
+                      </Link>
+                    </Muted>
                   </View>
                 ) : null}
               </Rise>

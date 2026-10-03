@@ -13,7 +13,7 @@ spring:
   mail:
     # Customer emails go through any SMTP server, set with environment variables:
     # SPRING_MAIL_HOST, SPRING_MAIL_PORT, SPRING_MAIL_USERNAME, SPRING_MAIL_PASSWORD.
-    # Without SPRING_MAIL_HOST, emails are only written to the log.
+    # Without SPRING_MAIL_HOST, emails are not sent (logged with a masked recipient; full text at DEBUG, dev profile).
     port: 587
     properties:
       mail.smtp.auth: true
@@ -45,7 +45,8 @@ server:
   port: ${PORT:8080}
   shutdown: graceful
   # Behind a reverse proxy (production), read the visitor's IP from X-Forwarded-For (used by the booking limits).
-  # Only safe when the proxy is the only way in.
+  # Only safe when the proxy is the only way in and sets the header itself (docker/nginx.conf replaces whatever the
+  # visitor sent).
   forward-headers-strategy: ${FORWARD_HEADERS:native}
 
 taxi:
@@ -69,6 +70,8 @@ taxi:
     max-signups-per-hour: 10
     max-logins-per-hour: 50
     max-logins-per-account-per-15-min: 10
+    # Token renewals (and sign-outs) per visitor IP: an app renews about every 15 minutes.
+    max-refreshes-per-hour: 300
   public:
     # Address of the booking website, used in emailed links while none is set in the back office.
     site-url: ${SITE_URL:}
@@ -78,6 +81,8 @@ taxi:
     max-reviews-per-hour: 20
     # Live driver position on the ride page, per visitor IP and per minute (the page polls every 5 s).
     max-tracking-per-minute: 60
+    # Private ride page (/b/<token>: view, answer a price, cancel) per visitor IP and per hour (it reloads every 30 s).
+    max-ride-page-per-hour: 600
   driver:
     # Position updates from the driver's phone: about one per second, small bursts allowed.
     max-location-updates-per-5s: 5

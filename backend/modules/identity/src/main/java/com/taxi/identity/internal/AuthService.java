@@ -36,6 +36,9 @@ class AuthService implements Owners {
     record Tokens(String accessToken, String refreshToken, long expiresIn) {}
 
     private static final Pattern EMAIL = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+    private static final int MAX_EMAIL = 254;
+    /** BCrypt only uses the first 72 bytes of a password (and refuses longer ones). */
+    static final int MAX_PASSWORD_BYTES = 72;
 
     private final UserRepository users;
     private final PasswordEncoder passwords;
@@ -44,6 +47,7 @@ class AuthService implements Owners {
     private final ApplicationEventPublisher events;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthService.class);
     // Checked when the email is unknown, so a wrong email takes as long as a wrong password.
     private final String dummyHash;
 
@@ -61,11 +65,14 @@ class AuthService implements Owners {
     @Transactional
     Tokens signUp(String email, String password, String fullName, String phone, String language) {
         var cleanEmail = email == null ? "" : email.trim();
-        if (!EMAIL.matcher(cleanEmail).matches()) {
+        if (cleanEmail.length() > MAX_EMAIL || !EMAIL.matcher(cleanEmail).matches()) {
             throw ApiException.badRequest("BAD_EMAIL");
         }
         if (password == null || password.length() < 8) {
             throw ApiException.badRequest("WEAK_PASSWORD");
+        }
+        if (tooLong(password)) {
+            throw ApiException.badRequest("PASSWORD_TOO_LONG");
         }
         var name = fullName == null || fullName.isBlank() ? cleanEmail : fullName.trim();
         var cleanPhone = phone == null || phone.isBlank() ? null : phone.trim();
@@ -84,23 +91,39 @@ class AuthService implements Owners {
     Tokens login(String email, String password) {
         var user = users.findByEmail(email == null ? "" : email.trim());
         var hash = user.map(UserRepository.UserRow::passwordHash).orElse(dummyHash);
-        var matches = passwords.matches(password == null ? "" : password, hash);
+        // A password BCrypt cannot check is simply wrong (same answer and about the same time as any wrong one).
+        var given = password == null || tooLong(password) ? "" : password;
+        var matches = passwords.matches(given, hash) && !tooLong(password);
         if (user.isEmpty() || !matches) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS");
         }
         return issue(user.get().id());
     }
 
-    @Transactional
+    /**
+     * Rotation: each refresh token works once and is replaced by a new one of the same sign-in ("family").
+     * A token used a second time means it was copied (stolen, or replayed): the whole sign-in is ended, so the
+     * thief's tokens stop working too (the real user signs in again). Not rolled back by the refusal.
+     */
+    @Transactional(noRollbackFor = ApiException.class)
     Tokens refresh(String refreshToken) {
-        var userId = users.consumeRefreshToken(hash(refreshToken), clock.instant())
-                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED"));
-        return issue(userId);
+        var now = clock.instant();
+        var tokenHash = hash(refreshToken);
+        var consumed = users.consumeRefreshToken(tokenHash, now);
+        if (consumed.isEmpty()) {
+            users.usedRefreshTokenFamily(tokenHash, now).ifPresent(family -> {
+                int ended = users.revokeRefreshTokenFamily(family, now);
+                log.warn("A used refresh token was presented again: sign-in ended ({} active token(s) revoked)", ended);
+            });
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED");
+        }
+        return issue(consumed.get().userId(), consumed.get().familyId());
     }
 
+    /** Ends this sign-in (every token of its family). Access tokens already given expire on their own (15 min). */
     @Transactional
     void logout(String refreshToken) {
-        users.revokeRefreshToken(hash(refreshToken), clock.instant());
+        users.familyOf(hash(refreshToken)).ifPresent(family -> users.revokeRefreshTokenFamily(family, clock.instant()));
     }
 
     /** Customers delete their own account; the owner's account holds the business and is refused. */
@@ -131,6 +154,10 @@ class AuthService implements Owners {
     }
 
     private Tokens issue(UUID userId) {
+        return issue(userId, UUID.randomUUID()); // a new sign-in
+    }
+
+    private Tokens issue(UUID userId, UUID familyId) {
         Instant now = clock.instant();
         Set<Role> roles = users.roles(userId);
         var claims = JwtClaimsSet.builder()
@@ -146,8 +173,12 @@ class AuthService implements Owners {
         var bytes = new byte[32];
         random.nextBytes(bytes);
         var refresh = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        users.saveRefreshToken(userId, hash(refresh), now.plus(props.refreshTokenTtl()));
+        users.saveRefreshToken(userId, hash(refresh), familyId, now.plus(props.refreshTokenTtl()));
         return new Tokens(access, refresh, props.accessTokenTtl().toSeconds());
+    }
+
+    private static boolean tooLong(String password) {
+        return password != null && password.getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES;
     }
 
     static String normalizeLanguage(String language) {

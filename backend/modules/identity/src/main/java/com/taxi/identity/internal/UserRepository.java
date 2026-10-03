@@ -108,35 +108,59 @@ class UserRepository {
 
     // --- refresh tokens (only their SHA-256 hash is stored) ---
 
-    void saveRefreshToken(UUID userId, String tokenHash, Instant expiresAt) {
-        jdbc.sql("insert into refresh_tokens (user_id, token_hash, expires_at) values (:u, :h, :e)")
+    /** The owner of a refresh token and its sign-in (family: the tokens that replaced one another). */
+    record Consumed(UUID userId, UUID familyId) {}
+
+    void saveRefreshToken(UUID userId, String tokenHash, UUID familyId, Instant expiresAt) {
+        jdbc.sql("insert into refresh_tokens (user_id, token_hash, family_id, expires_at) values (:u, :h, :f, :e)")
                 .param("u", userId)
                 .param("h", tokenHash)
+                .param("f", familyId)
                 .param("e", java.sql.Timestamp.from(expiresAt))
                 .update();
     }
 
     /** Marks the token used and returns its owner, if it was valid. One refresh token works once. */
-    Optional<UUID> consumeRefreshToken(String tokenHash, Instant now) {
+    Optional<Consumed> consumeRefreshToken(String tokenHash, Instant now) {
         return jdbc.sql("""
                 update refresh_tokens set revoked_at = :now
                 where token_hash = :h and revoked_at is null and expires_at > :now
-                returning user_id""")
+                returning user_id, family_id""")
+                .param("h", tokenHash)
+                .param("now", java.sql.Timestamp.from(now))
+                .query(Consumed.class)
+                .optional();
+    }
+
+    /** The sign-in of a token that was already used or revoked (and has not expired): a replay. */
+    Optional<UUID> usedRefreshTokenFamily(String tokenHash, Instant now) {
+        return jdbc.sql("""
+                select family_id from refresh_tokens
+                where token_hash = :h and revoked_at is not null and expires_at > :now""")
                 .param("h", tokenHash)
                 .param("now", java.sql.Timestamp.from(now))
                 .query(UUID.class)
                 .optional();
     }
 
-    void revokeRefreshToken(String tokenHash, Instant now) {
-        jdbc.sql("update refresh_tokens set revoked_at = :now where token_hash = :h and revoked_at is null")
+    Optional<UUID> familyOf(String tokenHash) {
+        return jdbc.sql("select family_id from refresh_tokens where token_hash = :h")
                 .param("h", tokenHash)
+                .query(UUID.class)
+                .optional();
+    }
+
+    /** Ends a sign-in: every still-valid token of the family. Returns how many were revoked. */
+    int revokeRefreshTokenFamily(UUID familyId, Instant now) {
+        return jdbc.sql("update refresh_tokens set revoked_at = :now where family_id = :f and revoked_at is null")
+                .param("f", familyId)
                 .param("now", java.sql.Timestamp.from(now))
                 .update();
     }
 
+    /** Used tokens are kept a week, so a replay is still recognised (and ends the sign-in) after rotation. */
     void deleteExpiredRefreshTokens(Instant now) {
-        jdbc.sql("delete from refresh_tokens where expires_at < :now or revoked_at < :now - interval '1 day'")
+        jdbc.sql("delete from refresh_tokens where expires_at < :now or revoked_at < :now - interval '7 days'")
                 .param("now", java.sql.Timestamp.from(now))
                 .update();
     }

@@ -41,7 +41,7 @@ class ReviewController {
     @PutMapping("/api/public/bookings/{token}/review")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void review(@PathVariable String token, @RequestBody Input body, HttpServletRequest request) {
-        if (!limiter.allow("review:" + request.getRemoteAddr(), maxReviews, HOUR)) {
+        if (!limiter.allow("review:" + RateLimiter.visitor(request), maxReviews, HOUR)) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_REQUESTS");
         }
         reviews.submit(token, body);

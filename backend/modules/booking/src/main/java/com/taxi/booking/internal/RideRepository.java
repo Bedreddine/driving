@@ -202,6 +202,19 @@ class RideRepository {
                 .param("now", utc(now)).query(Ride.class).list();
     }
 
+    /**
+     * Is the driver busy right now with another customer's accepted ride (between its pickup and its planned end)?
+     * Their position then tells where that other customer is: not to be shown to anyone else.
+     */
+    boolean driverBusyWithAnotherCustomer(UUID driverId, UUID rideId, UUID contactId, Instant now) {
+        return jdbc.sql("""
+                select exists (select 1 from rides where driver_id = :d and id <> :r and contact_id <> :c
+                  and status = 'accepted' and pickup_at <= :now
+                  and pickup_at + make_interval(secs => duration_s) + make_interval(mins => pickup_allowance_min) > :now)""")
+                .param("d", driverId).param("r", rideId).param("c", contactId).param("now", utc(now))
+                .query(Boolean.class).single();
+    }
+
     List<Ride> openForContact(UUID contactId) {
         return jdbc.sql("select " + Ride.COLUMNS + " from rides where contact_id = :c"
                         + " and status in ('requested', 'price_proposed', 'accepted') for update")

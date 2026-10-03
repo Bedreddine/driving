@@ -49,13 +49,38 @@ class CustomerChannels {
     @Bean
     @ConditionalOnMissingBean(EmailSender.class)
     EmailSender loggedEmail() {
-        log.info("No SMTP server configured (spring.mail.host): customer emails are only written to the log.");
-        return (to, subject, body) -> log.info("EMAIL to {} | {}\n{}", to, subject, body);
+        log.info("No SMTP server configured (spring.mail.host): customer emails are not sent (the log shows a masked recipient and the subject; the full text only at DEBUG).");
+        // The text holds the customer's name, addresses and private ride link: only at DEBUG (on in the dev profile).
+        return (to, subject, body) -> {
+            log.info("EMAIL to {} | {} (not sent: no SMTP server)", maskEmail(to), subject);
+            log.debug("EMAIL to {} | {}\n{}", to, subject, body);
+        };
     }
 
     @Bean
     @ConditionalOnMissingBean(SmsSender.class)
     SmsSender loggedSms() {
-        return (to, text) -> log.info("SMS to {} | {}", to, text);
+        return (to, text) -> {
+            log.info("SMS to {} (not sent: no SMS provider)", maskPhone(to));
+            log.debug("SMS to {} | {}", to, text);
+        };
+    }
+
+    /** "jane.doe@example.com" -> "j***@example.com": enough to tell messages apart in the log. */
+    static String maskEmail(String email) {
+        if (email == null) {
+            return null;
+        }
+        int at = email.indexOf('@');
+        return at <= 0 ? "***" : email.charAt(0) + "***" + email.substring(at);
+    }
+
+    /** "+33 6 12 34 56 78" -> "***78". */
+    static String maskPhone(String phone) {
+        if (phone == null) {
+            return null;
+        }
+        var digits = phone.replaceAll("[^0-9]", "");
+        return digits.length() < 2 ? "***" : "***" + digits.substring(digits.length() - 2);
     }
 }

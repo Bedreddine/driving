@@ -77,6 +77,7 @@ class PublicBookingController {
     private final int maxQuotes;
     private final DriverTracking tracking;
     private final int maxTracking;
+    private final int maxRidePage;
 
     PublicBookingController(BookingService booking, RideLifecycle lifecycle, RideRepository rides,
                             ContactRepository contacts, DriverRepository drivers, Pricing pricing, RideReviews reviews,
@@ -84,7 +85,9 @@ class PublicBookingController {
                             @Value("${taxi.public.max-bookings-per-hour:10}") int maxBookings,
                             @Value("${taxi.public.max-quotes-per-hour:60}") int maxQuotes,
                             DriverTracking tracking,
-                            @Value("${taxi.public.max-tracking-per-minute:60}") int maxTracking) {
+                            @Value("${taxi.public.max-tracking-per-minute:60}") int maxTracking,
+                            @Value("${taxi.public.max-ride-page-per-hour:600}") int maxRidePage) {
+        this.maxRidePage = maxRidePage;
         this.booking = booking;
         this.lifecycle = lifecycle;
         this.rides = rides;
@@ -115,7 +118,7 @@ class PublicBookingController {
     @PostMapping("/api/public/bookings")
     BookingResult book(@RequestBody @Valid GuestBooking body, HttpServletRequest request) {
         var dryRun = Boolean.TRUE.equals(body.dryRun());
-        var ip = request.getRemoteAddr();
+        var ip = RateLimiter.visitor(request);
         var allowed = dryRun ? limiter.allow("quote:" + ip, maxQuotes, HOUR) : limiter.allow("book:" + ip, maxBookings, HOUR);
         if (!allowed) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_REQUESTS");
@@ -130,8 +133,9 @@ class PublicBookingController {
     }
 
     @GetMapping("/api/public/bookings/{token}")
-    PublicRide get(@PathVariable String token) {
-        var r = rides.byAccessToken(token).orElseThrow(ApiException::notFound);
+    PublicRide get(@PathVariable String token, HttpServletRequest request) {
+        limitRidePage(request);
+        var r = ride(token);
         var clientName = contacts.find(r.contactId()).map(ContactRepository.Contact::fullName).orElse(null);
         var reviewing = reviews.of(new RideDirectory.RideFacts(r.id(), r.status(), r.pickupAt(), clientName,
                 contacts.isAnonymized(r.contactId())));
@@ -146,22 +150,41 @@ class PublicBookingController {
     /** Where the driver is (the page polls every few seconds); 204 when it must not or cannot be shown. */
     @GetMapping("/api/public/bookings/{token}/driver")
     ResponseEntity<DriverTracking.DriverLocation> driverLocation(@PathVariable String token, HttpServletRequest request) {
-        if (!limiter.allow("track:" + request.getRemoteAddr(), maxTracking, Duration.ofMinutes(1))) {
+        if (!limiter.allow("track:" + RateLimiter.visitor(request), maxTracking, Duration.ofMinutes(1))) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_REQUESTS");
         }
-        var r = rides.byAccessToken(token).orElseThrow(ApiException::notFound);
+        var r = ride(token);
         return tracking.forRide(r).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @PostMapping("/api/public/bookings/{token}/respond")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void respond(@PathVariable String token, @RequestBody @Valid Answer body) {
+    void respond(@PathVariable String token, @RequestBody @Valid Answer body, HttpServletRequest request) {
+        limitRidePage(request);
         lifecycle.respondAsGuest(token, body.accept());
     }
 
     @PostMapping("/api/public/bookings/{token}/cancel")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void cancel(@PathVariable String token) {
+    void cancel(@PathVariable String token, HttpServletRequest request) {
+        limitRidePage(request);
         lifecycle.cancelAsGuest(token);
+    }
+
+    /**
+     * The private link is the only key to a guest's ride: 192 random bits, so it cannot be guessed, and lookups are
+     * limited per visitor anyway (the page reloads every 30 s). Unknown and malformed tokens get the same 404.
+     */
+    private void limitRidePage(HttpServletRequest request) {
+        if (!limiter.allow("ride-page:" + RateLimiter.visitor(request), maxRidePage, HOUR)) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_REQUESTS");
+        }
+    }
+
+    private Ride ride(String token) {
+        if (token == null || token.length() < 32 || token.length() > 128) {
+            throw ApiException.notFound();
+        }
+        return rides.byAccessToken(token).orElseThrow(ApiException::notFound);
     }
 }

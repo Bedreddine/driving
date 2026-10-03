@@ -2,3 +2,7 @@
 taxi:
   public:
     site-url: ${SITE_URL:http://localhost:8081}
+logging:
+  level:
+    # Development: show the full text of customer emails / SMS that are only logged (never on in production).
+    com.taxi.notification.internal.CustomerChannels: DEBUG

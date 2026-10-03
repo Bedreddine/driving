@@ -16,7 +16,8 @@ import org.springframework.stereotype.Component;
 /**
  * Live driver position, sent by the driver's phone and shown to the customer of a ride.
  * Privacy: a customer sees the driver only around their own accepted ride (from 90 minutes before pickup until
- * 60 minutes after the planned end), and only a recent position (under 2 minutes old). Only the latest position
+ * 60 minutes after the planned end), only a recent position (under 2 minutes old), and never while the driver is
+ * carrying another customer (that would show where the other customer is going). Only the latest position
  * is stored (survives restarts, no history); coordinates are never logged.
  */
 @Component
@@ -43,12 +44,14 @@ class DriverTracking {
     private record Eta(Instant at, String to, Integer etaS, Integer distanceM) {}
 
     private final DriverRepository drivers;
+    private final RideRepository rides;
     private final RoutingClient routing;
     private final Clock clock;
     private final Map<UUID, Eta> etas = new ConcurrentHashMap<>();
 
-    DriverTracking(DriverRepository drivers, RoutingClient routing, Clock clock) {
+    DriverTracking(DriverRepository drivers, RideRepository rides, RoutingClient routing, Clock clock) {
         this.drivers = drivers;
+        this.rides = rides;
         this.routing = routing;
         this.clock = clock;
     }
@@ -68,7 +71,7 @@ class DriverTracking {
         }
         var position = drivers.position(ride.driverId())
                 .filter(p -> p.updatedAt().toInstant().isAfter(now.minus(FRESH)));
-        if (position.isEmpty()) {
+        if (position.isEmpty() || rides.driverBusyWithAnotherCustomer(ride.driverId(), ride.id(), ride.contactId(), now)) {
             return Optional.empty();
         }
         var p = position.get();

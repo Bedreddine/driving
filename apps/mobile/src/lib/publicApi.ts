@@ -21,6 +21,24 @@ export type BusinessInfo = {
   amenities: Amenity[];
   /** The car, as the driver describes it (photos outside and inside). */
   vehicle?: Vehicle;
+  /** Company details for the legal pages (mentions légales, CGV, privacy). */
+  legal?: LegalInfo;
+};
+
+export type LegalInfo = {
+  company_name: string | null;
+  legal_form: string | null;
+  siret: string | null;
+  vat_number: string | null;
+  address: string | null;
+  evtc_number: string | null;
+  publication_director: string | null;
+  insurance: string | null;
+  payment_methods: string | null;
+  mediator_name: string | null;
+  mediator_url: string | null;
+  host_name: string | null;
+  host_address: string | null;
 };
 
 export type VehicleCategory = 'sedan' | 'van' | 'suv' | 'electric';

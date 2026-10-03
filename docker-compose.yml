@@ -3,8 +3,16 @@
 #   docker compose up -d --build
 # Website + API: http://localhost:${WEB_PORT:-8080}  (put HTTPS in front in production, see README)
 
+# Container logs (they include visitors' IP addresses): kept small and short-lived, 3 files of 10 MB per service.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
+    logging: *logging
     image: postgres:17
     restart: unless-stopped
     environment:
@@ -20,6 +28,7 @@ services:
       retries: 20
 
   backend:
+    logging: *logging
     build: ./backend
     restart: unless-stopped
     depends_on:
@@ -45,6 +54,7 @@ services:
     # No port published: only reachable through the website's nginx.
 
   web:
+    logging: *logging
     build:
       context: .
       dockerfile: apps/mobile/Dockerfile

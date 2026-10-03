@@ -251,7 +251,11 @@ class RideLifecycleIT extends IntegrationTest {
     void deletingAnAccountCancelsOpenRidesAndRemovesPersonalData() throws Exception {
         var open = bookId(clientToken, ride(slot(10)));
         var contact = contactOf(clientId);
+        var emailsToClient = "select count(*) from customer_messages where recipient = 'client@taxi.test'";
+        assertThat(jdbc.sql(emailsToClient).query(Integer.class).single()).isPositive();
         call(delete("/api/me"), clientToken, null, 204);
+        // The emails about their rides (address, name, trip) are erased too
+        assertThat(jdbc.sql(emailsToClient).query(Integer.class).single()).isZero();
 
         assertThat(status(open)).isEqualTo("cancelled");
         var c = contacts.find(contact).orElseThrow();

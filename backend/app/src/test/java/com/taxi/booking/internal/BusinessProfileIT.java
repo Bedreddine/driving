@@ -197,4 +197,107 @@ class BusinessProfileIT extends IntegrationTest {
         assertThat(mvc.perform(get("/api/public/business/photo")).andReturn().getResponse().getContentAsByteArray())
                 .hasSize(BusinessProfile.MAX_PHOTO_BYTES); // still the owner's photo
     }
+
+    // ------------------------------------------------------------------ legal details (mentions légales, CGV)
+
+    private static final List<String> LEGAL_KEYS = List.of("company_name", "legal_form", "siret", "vat_number", "address",
+            "evtc_number", "publication_director", "insurance", "payment_methods", "mediator_name", "mediator_url",
+            "host_name", "host_address");
+
+    private static Map<String, Object> legal(Object... kv) {
+        var m = new HashMap<String, Object>();
+        for (int i = 0; i < kv.length; i += 2) {
+            m.put((String) kv[i], kv[i + 1]);
+        }
+        return m;
+    }
+
+    @Test
+    void legalDetailsAreAlwaysPresentAndEmptyAtFirst() throws Exception {
+        var l = publicProfile().get("legal");
+        assertThat(l).isNotNull();
+        assertThat(l.size()).isEqualTo(LEGAL_KEYS.size());
+        for (var key : LEGAL_KEYS) {
+            assertThat(l.has(key)).as(key).isTrue();
+            assertThat(l.get(key).isNull()).as(key).isTrue();
+        }
+    }
+
+    @Test
+    void theOwnerFillsInTheLegalDetailsAndTheWebsiteShowsThem() throws Exception {
+        var saved = call(put("/api/admin/business"), ownerToken, profile("legal", legal(
+                "company_name", "  Élysée Chauffeur SASU ", "legal_form", "SASU au capital de 1 000 €",
+                "siret", "123 456 789 00012", "vat_number", "FR12345678901", "address", "1 rue de Rivoli, 75001 Paris",
+                "evtc_number", "EVTC075230001", "publication_director", "Karim B.", "insurance", "AXA, contrat 123",
+                "payment_methods", "Carte bancaire, espèces", "mediator_name", "CM2C",
+                "mediator_url", "https://www.cm2c.net", "host_name", "Hetzner Online GmbH",
+                "host_address", "Industriestr. 25, 91710 Gunzenhausen, Allemagne")), 200);
+        assertThat(saved.get("legal").get("company_name").asString()).isEqualTo("Élysée Chauffeur SASU");
+
+        var l = publicProfile().get("legal");
+        assertThat(l.get("company_name").asString()).isEqualTo("Élysée Chauffeur SASU"); // trimmed
+        assertThat(l.get("siret").asString()).isEqualTo("12345678900012"); // stored without spaces
+        assertThat(l.get("legal_form").asString()).isEqualTo("SASU au capital de 1 000 €");
+        assertThat(l.get("vat_number").asString()).isEqualTo("FR12345678901");
+        assertThat(l.get("address").asString()).isEqualTo("1 rue de Rivoli, 75001 Paris");
+        assertThat(l.get("evtc_number").asString()).isEqualTo("EVTC075230001");
+        assertThat(l.get("publication_director").asString()).isEqualTo("Karim B.");
+        assertThat(l.get("insurance").asString()).isEqualTo("AXA, contrat 123");
+        assertThat(l.get("payment_methods").asString()).isEqualTo("Carte bancaire, espèces");
+        assertThat(l.get("mediator_name").asString()).isEqualTo("CM2C");
+        assertThat(l.get("mediator_url").asString()).isEqualTo("https://www.cm2c.net");
+        assertThat(l.get("host_name").asString()).isEqualTo("Hetzner Online GmbH");
+        assertThat(l.get("host_address").asString()).startsWith("Industriestr. 25");
+
+        // A save without the legal object (older back office) keeps them.
+        call(put("/api/admin/business"), ownerToken, profile("driver_name", "Karim"), 200);
+        assertThat(publicProfile().get("legal").get("siret").asString()).isEqualTo("12345678900012");
+
+        // Blank values clear them; keys left out are cleared too (the object replaces the details).
+        call(put("/api/admin/business"), ownerToken, profile("legal", legal("company_name", "   ", "siret", "",
+                "insurance", "MAIF")), 200);
+        l = publicProfile().get("legal");
+        assertThat(l.get("company_name").isNull()).isTrue();
+        assertThat(l.get("siret").isNull()).isTrue();
+        assertThat(l.get("vat_number").isNull()).isTrue();
+        assertThat(l.get("insurance").asString()).isEqualTo("MAIF");
+    }
+
+    @Test
+    void legalDetailsAreChecked() throws Exception {
+        call(put("/api/admin/business"), ownerToken, profile("legal", legal("siret", "12345678900012",
+                "address", " " + "a".repeat(300) + " ", "mediator_url", "http://mediateur.example/x",
+                "company_name", "c".repeat(200))), 200);
+
+        for (var bad : List.of(
+                legal("siret", "1234567890001"), // 13 digits
+                legal("siret", "123456789000123"), // 15 digits
+                legal("siret", "1234567890001A"),
+                legal("address", "a".repeat(301)),
+                legal("host_address", "a".repeat(301)),
+                legal("mediator_url", "https://" + "a".repeat(293)),
+                legal("mediator_url", "www.cm2c.net"),
+                legal("mediator_url", "javascript:alert(1)"),
+                legal("mediator_url", "https://bad url"),
+                legal("company_name", "c".repeat(201)),
+                legal("legal_form", "c".repeat(201)),
+                legal("vat_number", "c".repeat(201)),
+                legal("evtc_number", "c".repeat(201)),
+                legal("publication_director", "c".repeat(201)),
+                legal("insurance", "c".repeat(201)),
+                legal("payment_methods", "c".repeat(201)),
+                legal("mediator_name", "c".repeat(201)),
+                legal("host_name", "c".repeat(201)))) {
+            assertThat(errorOf(put("/api/admin/business"), ownerToken, profile("legal", bad), 400)).as(bad.toString())
+                    .isEqualTo("BAD_INPUT");
+        }
+        assertThat(errorOf(put("/api/admin/business"), ownerToken, profile("legal", "not an object"), 400))
+                .isEqualTo("BAD_INPUT");
+        var l = publicProfile().get("legal");
+        assertThat(l.get("siret").asString()).as("nothing saved").isEqualTo("12345678900012");
+        assertThat(l.get("address").asString()).hasSize(300);
+
+        // Only the owner edits.
+        call(put("/api/admin/business"), clientToken, profile("legal", legal("company_name", "Hacker")), 403);
+    }
 }

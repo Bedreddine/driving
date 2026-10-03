@@ -15,9 +15,17 @@ services:
     image: ghcr.io/${GHCR_OWNER}/driving-web:${IMAGE_TAG:-latest}
     pull_policy: always
     ports: !reset []
+    volumes:
+      # Behind Caddy: take the visitor's address from Caddy only (see the file).
+      - ./deploy/nginx-real-ip.conf:/etc/nginx/conf.d/real-ip.conf:ro
 
   caddy:
     image: caddy:2
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: unless-stopped
     depends_on:
       - web

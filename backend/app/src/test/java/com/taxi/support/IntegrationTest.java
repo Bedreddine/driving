@@ -36,6 +36,8 @@ import tools.jackson.databind.json.JsonMapper;
         "taxi.public.max-quotes-per-hour=1000",
         "taxi.public.max-reviews-per-hour=1000",
         "taxi.public.max-tracking-per-minute=1000",
+        "taxi.public.max-ride-page-per-hour=100000",
+        "taxi.auth.max-refreshes-per-hour=100000",
         "taxi.driver.max-location-updates-per-5s=1000",
         "taxi.auth.max-signups-per-hour=100000",
         "taxi.auth.max-logins-per-hour=100000",

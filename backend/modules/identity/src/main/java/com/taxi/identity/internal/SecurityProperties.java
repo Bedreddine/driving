@@ -21,6 +21,11 @@ record SecurityProperties(String jwtSecret, Duration accessTokenTtl, Duration re
             throw new IllegalStateException(
                     "taxi.security.jwt-secret (env JWT_SECRET) must be set to at least 32 characters");
         }
+        // The example value from .env.example is public: anyone could sign admin tokens with it.
+        if (jwtSecret.startsWith("change-me")) {
+            throw new IllegalStateException(
+                    "taxi.security.jwt-secret (env JWT_SECRET) is still the example value: set a random one (openssl rand -base64 48)");
+        }
         accessTokenTtl = accessTokenTtl == null ? Duration.ofMinutes(15) : accessTokenTtl;
         refreshTokenTtl = refreshTokenTtl == null ? Duration.ofDays(30) : refreshTokenTtl;
         corsOrigins = corsOrigins == null ? List.of() : corsOrigins;

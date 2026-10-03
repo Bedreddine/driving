@@ -108,6 +108,11 @@ say "Starting (database, server, website, HTTPS)"
 "${COMPOSE[@]}" pull
 "${COMPOSE[@]}" up -d --no-build --remove-orphans
 
+say "Nightly database backup (03:17, the last 14 days kept in $DIR/backups)"
+chmod +x deploy/backup.sh
+( crontab -l 2>/dev/null | grep -v 'deploy/backup.sh' ; echo "17 3 * * * $DIR/deploy/backup.sh >> $DIR/backups/backup.log 2>&1" ) | crontab -
+mkdir -p backups && chmod 700 backups
+
 say "Waiting for the server"
 for _ in $(seq 1 60); do
   if curl -fsS -o /dev/null "https://$DOMAIN/api/public/business" 2>/dev/null; then OK=1; break; fi
@@ -128,5 +133,6 @@ Next:
   2. Make it the owner (driver + back office):
        cd $DIR && ${COMPOSE[*]} run --rm backend --taxi.make-owner=YOUR@EMAIL --server.port=0
   3. Sign in, open https://$DOMAIN/admin: set prices, hours, your car, and in Entreprise the website address https://$DOMAIN.
+Backups: every night in $DIR/backups (copy them off the server from time to time, e.g. scp to your Mac).
 Updates later: run this script again, or use the Deploy button on GitHub.
 EOF

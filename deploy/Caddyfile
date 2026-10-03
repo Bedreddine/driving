@@ -1,5 +1,13 @@
 # HTTPS for the whole site (certificate obtained and renewed automatically), then the website's nginx.
 {$DOMAIN} {
 	encode zstd gzip
-	reverse_proxy web:80
+	header {
+		# Browsers only ever come back over HTTPS (one year). The other security headers come from docker/nginx.conf.
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	reverse_proxy web:80 {
+		# The visitor's real address, never one they sent themselves (nginx and the backend's limits rely on it).
+		header_up X-Forwarded-For {remote_host}
+	}
 }

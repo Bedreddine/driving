@@ -46,12 +46,15 @@ class AuthController {
     private final int maxSignups;
     private final int maxLoginsPerIp;
     private final int maxLoginsPerAccount;
+    private final int maxRefreshes;
 
     AuthController(AuthService auth, UserRepository users, CurrentUser currentUser, RateLimiter limiter,
                    ApplicationEventPublisher events,
                    @Value("${taxi.auth.max-signups-per-hour:10}") int maxSignups,
                    @Value("${taxi.auth.max-logins-per-hour:50}") int maxLoginsPerIp,
-                   @Value("${taxi.auth.max-logins-per-account-per-15-min:10}") int maxLoginsPerAccount) {
+                   @Value("${taxi.auth.max-logins-per-account-per-15-min:10}") int maxLoginsPerAccount,
+                   @Value("${taxi.auth.max-refreshes-per-hour:300}") int maxRefreshes) {
+        this.maxRefreshes = maxRefreshes;
         this.maxSignups = maxSignups;
         this.maxLoginsPerIp = maxLoginsPerIp;
         this.maxLoginsPerAccount = maxLoginsPerAccount;
@@ -65,15 +68,17 @@ class AuthController {
     @PostMapping("/api/auth/signup")
     @ResponseStatus(HttpStatus.CREATED)
     AuthService.Tokens signUp(@RequestBody @jakarta.validation.Valid SignUpRequest body, HttpServletRequest request) {
-        limit("signup:" + request.getRemoteAddr(), maxSignups, Duration.ofHours(1));
+        limit("signup:" + RateLimiter.visitor(request), maxSignups, Duration.ofHours(1));
         return auth.signUp(body.email(), body.password(), body.fullName(), body.phone(), body.language());
     }
 
     /** Limited per address and per account, against password guessing. */
     @PostMapping("/api/auth/login")
     AuthService.Tokens login(@RequestBody LoginRequest body, HttpServletRequest request) {
-        limit("login-ip:" + request.getRemoteAddr(), maxLoginsPerIp, Duration.ofHours(1));
+        limit("login-ip:" + RateLimiter.visitor(request), maxLoginsPerIp, Duration.ofHours(1));
         var email = body.email() == null ? "" : body.email().trim().toLowerCase(java.util.Locale.ROOT);
+        // Keys stay small whatever is sent (an email is at most 254 characters anyway).
+        email = email.length() > 254 ? email.substring(0, 254) : email;
         limit("login-email:" + email, maxLoginsPerAccount, Duration.ofMinutes(15));
         return auth.login(body.email(), body.password());
     }
@@ -84,14 +89,17 @@ class AuthController {
         }
     }
 
+    /** Limited per address: refresh tokens cannot be guessed, but each try costs a database lookup. */
     @PostMapping("/api/auth/refresh")
-    AuthService.Tokens refresh(@RequestBody RefreshRequest body) {
+    AuthService.Tokens refresh(@RequestBody RefreshRequest body, HttpServletRequest request) {
+        limit("refresh:" + RateLimiter.visitor(request), maxRefreshes, Duration.ofHours(1));
         return auth.refresh(body.refreshToken());
     }
 
     @PostMapping("/api/auth/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void logout(@RequestBody RefreshRequest body) {
+    void logout(@RequestBody RefreshRequest body, HttpServletRequest request) {
+        limit("refresh:" + RateLimiter.visitor(request), maxRefreshes, Duration.ofHours(1));
         auth.logout(body.refreshToken());
     }
 

@@ -5,6 +5,7 @@ A booking app for an independent chauffeur serving premium clients, branded **É
 - **The QR code on the driver's business card** opens the home page (`/book`): Paris at night on a living map, the driver's name and car, what is on board, and one button. A client books **without an account**: pickup and drop-off from **suggested places** (airports, stations, palace hotels), an address search, or **a pin on the map** (address and GPS coordinates); the route draws itself on the map and the price appears; then name, phone, email. They follow the ride through a **private link** (`/b/<token>`, also emailed) with its map: accept or refuse a proposed price, cancel.
 - **On the map:** tap to place a point, drag the pins to the exact door (price and route update), search results as numbered pins, and « Ma position » that follows the phone. Once a ride is confirmed, the client sees the driver's car approach live with its arrival time.
 - **Remember me (opt-in):** a guest can tick « Se souvenir de moi sur cet appareil »: next time the site says « Bon retour, James », offers « Refaire ce trajet », and their details are already filled in, so booking is just choosing the time and confirming. Kept on their device only (nothing extra on the server); « Oublier mes données » erases it. The ride page also has « Refaire ce trajet ».
+- **Legal pages:** mentions légales (`/legal`), CGV (`/terms`) and privacy policy (`/privacy`), in French and English, filled from the company details entered in the back office (Entreprise › Informations légales, which lists what is still missing). They are templates: have them checked by a professional before going live.
 - **The car:** the driver describes it (model, colour, year, category, features) and adds up to 12 photos outside and inside; clients see it on the home page, while booking and on the ride page, with a full-screen gallery.
 - **Animated QR card:** in Entreprise, the QR code draws itself line by line with the car photo, name and model; download it as a GIF to share, or show it full screen from the driver app (« Mon QR code »). The plain PNG stays for printing.
 - **« À bord »:** the driver lists what is offered in the car (water, soft drinks, sweets, non-smoking, chargers, Wi-Fi, child seat…, or their own lines) and sets their name, car and photo in the back office.
@@ -68,7 +69,7 @@ Test accounts (created on an empty database by the `dev` profile, used by `npm r
 
 ```bash
 npm test               # everything below
-npm run test:backend   # 110 tests: unit + integration on a real PostgreSQL (Testcontainers) + module boundaries
+npm run test:backend   # 125 tests: unit + integration on a real PostgreSQL (Testcontainers) + module boundaries
 npm run test:app       # 36 app tests (Paris time, prices, texts, reviewer names, map style, places, QR lines, remember-me)
 cd apps/mobile && npx tsc --noEmit && npx expo lint
 ```
@@ -177,6 +178,7 @@ Expiry of unanswered requests (every minute), reminders for rides left open, pho
 - **Password reset and email verification** for accounts: the email sending exists now, the screens are not built yet.
 - **SMS provider:** the sending is pluggable (`CustomerChannels.SmsSender`); choose a provider (paid per message) and wire it.
 - **Website address and domain:** decided at deployment; the QR code shows a warning until it is set.
+- **Legal pages:** fill in the company details in the back office and have the generated texts checked by a professional (accountant, lawyer, or your VTC federation).
 - **Live position from the driver's phone** is sent while the ride screen is open (the switch « Partager ma position en direct »). Sharing with the screen locked needs background location, not set up yet.
 - **Testing on a phone:** the map is a native module, so Expo Go cannot show it. Build a free development build once with EAS (`npx eas-cli build --profile development`) and install it on your phone; after that, `npm run mobile` works like Expo Go. The website needs nothing.
 - **Phone app release:** run `eas init` (your Expo account) for push notifications, add the Android Firebase file, replace the placeholder icon/splash and the `com.example.taxiapp` bundle ids, and set the real API address in `apps/mobile/eas.json`.

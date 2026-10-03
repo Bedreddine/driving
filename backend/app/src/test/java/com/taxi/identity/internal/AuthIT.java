@@ -86,4 +86,91 @@ class AuthIT extends IntegrationTest {
                 Map.of("name", "x", "days", java.util.List.of(1), "start_time", "20:00", "end_time", "22:00", "percent", 10), 400))
                 .isEqualTo("BAD_INPUT");
     }
+
+    // ------------------------------------------------------------------ security
+
+    @Test
+    void aReplayedRefreshTokenEndsTheWholeSignIn() throws Exception {
+        var first = call(post("/api/auth/login"), null, Map.of("email", "client@taxi.test", "password", "password123"), 200)
+                .get("refresh_token").asString();
+        var second = call(post("/api/auth/refresh"), null, Map.of("refresh_token", first), 200).get("refresh_token").asString();
+
+        // Someone replays the first token (a copy): refused, and the token the real user holds stops working too.
+        call(post("/api/auth/refresh"), null, Map.of("refresh_token", first), 401);
+        call(post("/api/auth/refresh"), null, Map.of("refresh_token", second), 401);
+
+        // Other sign-ins (another phone) are not affected.
+        var other = call(post("/api/auth/login"), null, Map.of("email", "client@taxi.test", "password", "password123"), 200)
+                .get("refresh_token").asString();
+        call(post("/api/auth/refresh"), null, Map.of("refresh_token", other), 200);
+        // Unknown tokens are simply refused.
+        call(post("/api/auth/refresh"), null, Map.of("refresh_token", "x".repeat(43)), 401);
+        call(post("/api/auth/refresh"), null, new HashMap<String, Object>(), 401);
+    }
+
+    @Test
+    void logoutEndsTheSignInEvenWithAnOlderToken() throws Exception {
+        var first = call(post("/api/auth/login"), null, Map.of("email", "client@taxi.test", "password", "password123"), 200)
+                .get("refresh_token").asString();
+        var second = call(post("/api/auth/refresh"), null, Map.of("refresh_token", first), 200).get("refresh_token").asString();
+        call(post("/api/auth/logout"), null, Map.of("refresh_token", second), 204);
+        call(post("/api/auth/refresh"), null, Map.of("refresh_token", second), 401);
+        assertThat(jdbc.sql("select count(*) from refresh_tokens where revoked_at is null and user_id = :u")
+                .param("u", clientId).query(Integer.class).single()).as("only the sign-up session is left").isEqualTo(1);
+    }
+
+    @Test
+    void passwordsLongerThanBcryptAcceptsAreHandled() throws Exception {
+        var tooLong = "p".repeat(73);
+        assertThat(errorOf(post("/api/auth/signup"), null, Map.of("email", "long@taxi.test", "password", tooLong), 400))
+                .isEqualTo("PASSWORD_TOO_LONG");
+        call(post("/api/auth/signup"), null, Map.of("email", "long@taxi.test", "password", "p".repeat(72)), 201);
+        // At login: a wrong password like any other, not a server error.
+        assertThat(errorOf(post("/api/auth/login"), null, Map.of("email", "long@taxi.test", "password", tooLong), 401))
+                .isEqualTo("INVALID_CREDENTIALS");
+        assertThat(errorOf(post("/api/auth/signup"), null,
+                Map.of("email", "a".repeat(250) + "@x.fr", "password", "password123"), 400)).isEqualTo("BAD_EMAIL");
+    }
+
+    @Test
+    void tokensFromAnotherIssuerOrWithoutSignatureAreRejected() throws Exception {
+        var now = java.time.Instant.now();
+        java.util.function.Function<String, String> sign = issuer -> hs256("{\"iss\":\"" + issuer + "\",\"sub\":\"" + clientId
+                + "\",\"iat\":" + now.getEpochSecond() + ",\"exp\":" + (now.getEpochSecond() + 60) + ",\"roles\":[\"customer\"]}");
+        call(get("/api/me"), sign.apply("taxi"), null, 200); // same key and issuer: accepted
+        call(get("/api/me"), sign.apply("someone-else"), null, 401);
+        var expired = hs256("{\"iss\":\"taxi\",\"sub\":\"" + clientId + "\",\"iat\":" + (now.getEpochSecond() - 1200)
+                + ",\"exp\":" + (now.getEpochSecond() - 300) + "}");
+        call(get("/api/me"), expired, null, 401);
+
+        // alg "none" with the client's claims but an admin role: refused.
+        var b64 = java.util.Base64.getUrlEncoder().withoutPadding();
+        var none = b64.encodeToString("{\"alg\":\"none\"}".getBytes()) + "."
+                + b64.encodeToString(("{\"iss\":\"taxi\",\"sub\":\"" + clientId + "\",\"exp\":"
+                + (now.getEpochSecond() + 60) + ",\"roles\":[\"admin\"]}").getBytes()) + ".";
+        call(get("/api/admin/working-hours"), none, null, 401);
+    }
+
+    /** A token signed with the test secret (HS256), with the given claims. */
+    private static String hs256(String claims) {
+        try {
+            var b64 = java.util.Base64.getUrlEncoder().withoutPadding();
+            var unsigned = b64.encodeToString("{\"alg\":\"HS256\"}".getBytes()) + "." + b64.encodeToString(claims.getBytes());
+            var mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(
+                    "integration-test-secret-0123456789abcdef".getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+            return unsigned + "." + b64.encodeToString(mac.doFinal(unsigned.getBytes()));
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    @Test
+    void theExampleJwtSecretIsRefusedAtStartup() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new SecurityProperties(
+                        "change-me-to-at-least-32-random-characters-please", null, null, null))
+                .isInstanceOf(IllegalStateException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new SecurityProperties("too-short", null, null, null))
+                .isInstanceOf(IllegalStateException.class);
+    }
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Image, Platform, ScrollView, Text, View } from 'react-native';
 import { QrCardPanel } from '@/components/QrCardPanel';
 import { Chip } from '@/components/scene';
+import { emptyLegal, LegalEditor } from '@/components/LegalEditor';
 import { emptyVehicle, VehicleEditor } from '@/components/VehicleEditor';
 import { Button, Card, CardTitle, colors, ErrorText, Field, fonts, Label, Muted, Notice, Row, styles, Title } from '@/components/ui';
 import { AMENITY_IDEAS } from '@/lib/amenities';
@@ -172,6 +173,7 @@ export default function AdminBusiness() {
             <ErrorText>{photoError}</ErrorText>
           </Card>
 
+          <LegalEditor legal={form.legal ?? emptyLegal} onChange={(l) => (setDone(false), setForm((f) => (f ? { ...f, legal: l } : f)))} />
           <VehicleEditor vehicle={form.vehicle ?? emptyVehicle} onChange={(v) => (setDone(false), setForm((f) => (f ? { ...f, vehicle: v } : f)))} onPhotosChanged={reloadPhotos} />
 
           <Card>

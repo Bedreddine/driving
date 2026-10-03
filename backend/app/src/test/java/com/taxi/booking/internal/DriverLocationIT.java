@@ -149,4 +149,26 @@ class DriverLocationIT extends IntegrationTest {
         events.publishEvent(new UserDeleting(userId));
         assertThat(jdbc.sql("select count(*) from driver_positions").query(Integer.class).single()).isZero();
     }
+
+    @Test
+    void notShownWhileTheDriverCarriesAnotherCustomer() throws Exception {
+        sendPosition();
+        var mine = acceptedRide(Instant.now().plus(Duration.ofMinutes(30)));
+        call(get("/api/public/bookings/" + tokenOf(mine) + "/driver"), null, null, 200);
+
+        // Another customer's ride is under way: where the driver is tells where that customer is going.
+        var other = signUp("other@taxi.test", "Other Client", "+33633333333");
+        var theirs = bookId(other, ride(slot(12)));
+        jdbc.sql("""
+                update rides set status = 'accepted', pickup_at = now() - interval '10 minutes', duration_s = 1800,
+                  blocked_range = tstzrange(now() - interval '10 minutes', now() - interval '9 minutes') where id = :id""")
+                .param("id", theirs).update();
+        call(get("/api/public/bookings/" + tokenOf(mine) + "/driver"), null, null, 204);
+        call(get("/api/rides/" + mine + "/driver-location"), clientToken, null, 204);
+        call(get("/api/rides/" + theirs + "/driver-location"), other, null, 200); // their own ride: shown
+
+        // Once that ride is closed, the next customer sees the driver coming.
+        jdbc.sql("update rides set status = 'completed' where id = :id").param("id", theirs).update();
+        call(get("/api/public/bookings/" + tokenOf(mine) + "/driver"), null, null, 200);
+    }
 }

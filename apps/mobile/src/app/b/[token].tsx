@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Image, Linking, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ClientTopBar } from '@/components/ClientTopBar';
+import { LegalLinks } from '@/components/LegalScreen';
 import { MapScene } from '@/components/map/MapScene';
 import { ReviewForm } from '@/components/Reviews';
 import { hasVehicle, VehicleCard } from '@/components/Vehicle';
@@ -306,6 +307,7 @@ export default function GuestRide() {
             <Link href="/book" style={{ color: night.primary, fontFamily: fonts.semibold }}>
               {t('bookAnother')} →
             </Link>
+            <LegalLinks />
           </>
         ) : null}
       </ScrollView>

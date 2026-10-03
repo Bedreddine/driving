@@ -127,11 +127,23 @@ To go back to an earlier version: set `IMAGE_TAG=<commit id>` in `.env` and run 
 
 ## 6. Backups
 
+The setup script installs a nightly job (03:17) that runs `deploy/backup.sh`: a compressed copy of the database in `~/driving/backups/`, the last 14 days kept, and a line in `backups/backup.log`. Run it by hand any time:
+
 ```bash
-docker compose exec -T postgres pg_dump -U taxi taxi | gzip > backup-$(date +%F).sql.gz
+~/driving/deploy/backup.sh
 ```
 
-Copy the file off the server regularly (a daily `cron` job is enough).
+Keep a copy off the server too (from your Mac, once a week for example):
+
+```bash
+scp -i <your-key> 'ubuntu@<server-ip>:~/driving/backups/*.sql.gz' ~/Backups/elysee/
+```
+
+Restore (into an empty database):
+
+```bash
+gunzip -c backups/taxi-2026-10-03.sql.gz | docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml exec -T postgres psql -U taxi taxi
+```
 
 ## Phone apps
 

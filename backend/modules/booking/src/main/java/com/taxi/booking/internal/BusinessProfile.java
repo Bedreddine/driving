@@ -74,7 +74,48 @@ class BusinessProfile implements Business {
                    List<VehiclePhotos.VehiclePhoto> photos) {}
 
     /**
-     * amenities missing (null) leaves the list as it is, so an older back office does not wipe it; same for vehicle.
+     * The company's legal details for the website's legal pages (mentions légales, CGV, privacy policy).
+     * Every value is a string or null; always present in the profile (all null until the owner fills them in).
+     *
+     * @param siret 14 digits, stored without spaces
+     */
+    record Legal(String companyName, String legalForm, String siret, String vatNumber, String address,
+                 String evtcNumber, String publicationDirector, String insurance, String paymentMethods,
+                 String mediatorName, String mediatorUrl, String hostName, String hostAddress) {
+
+        static final int MAX = 200;
+        static final int MAX_LONG = 300;
+        private static final java.util.regex.Pattern HTTP_URL = java.util.regex.Pattern.compile("^https?://\\S+$");
+        private static final java.util.regex.Pattern SIRET = java.util.regex.Pattern.compile("^[0-9]{14}$");
+
+        /** Trimmed, blanks as null, siret without spaces; BAD_INPUT when a value breaks a rule. */
+        Legal cleaned() {
+            var siretDigits = blankToNull(siret) == null ? null : siret.replaceAll("[\\s\\u00A0\\u202F]", "");
+            if (siretDigits != null && !SIRET.matcher(siretDigits).matches()) {
+                throw ApiException.badRequest("BAD_INPUT");
+            }
+            var url = limit(mediatorUrl, MAX_LONG);
+            if (url != null && !HTTP_URL.matcher(url).matches()) {
+                throw ApiException.badRequest("BAD_INPUT");
+            }
+            return new Legal(limit(companyName, MAX), limit(legalForm, MAX), siretDigits, limit(vatNumber, MAX),
+                    limit(address, MAX_LONG), limit(evtcNumber, MAX), limit(publicationDirector, MAX),
+                    limit(insurance, MAX), limit(paymentMethods, MAX), limit(mediatorName, MAX), url,
+                    limit(hostName, MAX), limit(hostAddress, MAX_LONG));
+        }
+
+        private static String limit(String value, int max) {
+            var v = blankToNull(value);
+            if (v != null && v.length() > max) {
+                throw ApiException.badRequest("BAD_INPUT");
+            }
+            return v;
+        }
+    }
+
+    /**
+     * amenities missing (null) leaves the list as it is, so an older back office does not wipe it; same for vehicle
+     * and legal.
      */
     record Body(@NotBlank @Size(max = 80) String name, @NotBlank @Size(max = 160) String taglineFr,
                 @NotBlank @Size(max = 160) String taglineEn, @Size(max = 40) String phone,
@@ -82,7 +123,7 @@ class BusinessProfile implements Business {
                 @Size(max = 300) @Pattern(regexp = URL) String appStoreUrl,
                 @Size(max = 300) @Pattern(regexp = URL) String playStoreUrl,
                 @Size(max = 60) String driverName, @Size(max = 80) String car,
-                @Size(max = 20) List<@NotNull @Valid Amenity> amenities, @Valid VehicleDetails vehicle) {}
+                @Size(max = 20) List<@NotNull @Valid Amenity> amenities, @Valid VehicleDetails vehicle, Legal legal) {}
 
     /**
      * What the booking website shows. photoUrl is relative and changes with the photo, so caches can keep it.
@@ -91,7 +132,7 @@ class BusinessProfile implements Business {
      */
     record Profile(String name, String taglineFr, String taglineEn, String phone, String email, String siteUrl,
                    String appStoreUrl, String playStoreUrl, String driverName, String car, String photoUrl,
-                   List<Amenity> amenities, Vehicle vehicle) {}
+                   List<Amenity> amenities, Vehicle vehicle, Legal legal) {}
 
     private record Presentation(String driverName, String car, String photoVersion, String amenities,
                                 String vehicleModel, String vehicleColor, String vehicleCategory, Integer vehicleYear,
@@ -146,7 +187,18 @@ class BusinessProfile implements Business {
                 i.playStoreUrl(), p.driverName(), p.car(), photoUrl,
                 List.of(json.readValue(p.amenities(), Amenity[].class)),
                 new Vehicle(p.vehicleModel(), p.vehicleColor(), p.vehicleCategory(), p.vehicleYear(),
-                        List.of(json.readValue(p.vehicleFeatures(), String[].class)), vehiclePhotos.list()));
+                        List.of(json.readValue(p.vehicleFeatures(), String[].class)), vehiclePhotos.list()),
+                legal());
+    }
+
+    private Legal legal() {
+        return jdbc.sql("""
+                select legal_company_name as company_name, legal_form, legal_siret as siret,
+                  legal_vat_number as vat_number, legal_address as address, legal_evtc_number as evtc_number,
+                  legal_publication_director as publication_director, legal_insurance as insurance,
+                  legal_payment_methods as payment_methods, legal_mediator_name as mediator_name,
+                  legal_mediator_url as mediator_url, legal_host_name as host_name, legal_host_address as host_address
+                from business_profile""").query(Legal.class).single();
     }
 
     /** Public: the booking website shows the name, tagline, contact and the driver's presentation. */
@@ -160,6 +212,7 @@ class BusinessProfile implements Business {
         var amenities = b.amenities() == null ? null
                 : json.writeValueAsString(b.amenities().stream().map(Amenity::cleaned).toList());
         var vehicle = b.vehicle() == null ? null : b.vehicle().cleaned();
+        var legal = b.legal() == null ? null : b.legal().cleaned();
         var update = jdbc.sql("""
                 update business_profile set name = :name, tagline_fr = :tfr, tagline_en = :ten, phone = :phone,
                   email = :email, site_url = :site, app_store_url = :ios, play_store_url = :android,
@@ -167,7 +220,13 @@ class BusinessProfile implements Business {
                         + (amenities == null ? "" : ", amenities = cast(:amenities as jsonb)")
                         + (vehicle == null ? "" : """
                         , vehicle_model = :vmodel, vehicle_color = :vcolor, vehicle_category = :vcategory,
-                          vehicle_year = :vyear, vehicle_features = cast(:vfeatures as jsonb)"""))
+                          vehicle_year = :vyear, vehicle_features = cast(:vfeatures as jsonb)""")
+                        + (legal == null ? "" : """
+                        , legal_company_name = :lcompany, legal_form = :lform, legal_siret = :lsiret,
+                          legal_vat_number = :lvat, legal_address = :laddress, legal_evtc_number = :levtc,
+                          legal_publication_director = :ldirector, legal_insurance = :linsurance,
+                          legal_payment_methods = :lpayment, legal_mediator_name = :lmediator,
+                          legal_mediator_url = :lmediatorurl, legal_host_name = :lhost, legal_host_address = :lhostaddress"""))
                 .param("name", b.name().trim()).param("tfr", b.taglineFr().trim()).param("ten", b.taglineEn().trim())
                 .param("phone", blankToNull(b.phone())).param("email", blankToNull(b.email()))
                 .param("site", blankToNull(b.siteUrl())).param("ios", blankToNull(b.appStoreUrl()))
@@ -180,6 +239,14 @@ class BusinessProfile implements Business {
             update = update.param("vmodel", vehicle.model()).param("vcolor", vehicle.color())
                     .param("vcategory", vehicle.category()).param("vyear", vehicle.year())
                     .param("vfeatures", json.writeValueAsString(vehicle.features()));
+        }
+        if (legal != null) {
+            update = update.param("lcompany", legal.companyName()).param("lform", legal.legalForm())
+                    .param("lsiret", legal.siret()).param("lvat", legal.vatNumber()).param("laddress", legal.address())
+                    .param("levtc", legal.evtcNumber()).param("ldirector", legal.publicationDirector())
+                    .param("linsurance", legal.insurance()).param("lpayment", legal.paymentMethods())
+                    .param("lmediator", legal.mediatorName()).param("lmediatorurl", legal.mediatorUrl())
+                    .param("lhost", legal.hostName()).param("lhostaddress", legal.hostAddress());
         }
         update.update();
         return profile();
