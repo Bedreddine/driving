@@ -220,8 +220,13 @@ class BookingService {
                 : in.agreedPrice() != null ? in.agreedPrice()
                 : policy.licence() == Licence.VTC || estimate.fixed() ? estimate.price() : null;
         var deadline = quick ? null : answerDeadline(now, start);
+        // What a guest typed lives on the ride: a matched contact's data is never shown nor changed.
+        String guestName = null;
+        String guestLanguage = null;
         if (booker instanceof Guest g) {
             contactId = guestContact(g);
+            guestName = g.fullName();
+            guestLanguage = g.language();
         }
         var accessToken = newAccessToken();
         var rideId = rides.insert(new RideRepository.NewRide(contactId, driver.id(), actor,
@@ -229,7 +234,7 @@ class BookingService {
                 in.pickup().address().trim(), pickup.lat(), pickup.lng(), in.dropoff().address().trim(), dropoff.lat(),
                 dropoff.lng(), main.distanceM(), main.durationS(), allowance, end.plus(gap), passengers, luggage,
                 childSeats, vehicle, meetGreet, travelRef, blankToNull(in.customerNotes()), estimate.currency(), estimate.fixed(),
-                estimate.price(), agreed, deadline, accessToken, main.path()));
+                estimate.price(), agreed, deadline, accessToken, main.path(), guestName, guestLanguage));
         rides.logEvent(rideId, null, status, actor, warnings.isEmpty() ? null : "overridden: " + String.join(",", warnings));
 
         var change = notices.about(rideId);
@@ -272,12 +277,14 @@ class BookingService {
         return warnings;
     }
 
-    /** A returning guest (same email and phone) keeps one customer record and one history. */
+    /**
+     * A returning guest (same email and phone) keeps one customer record and one history.
+     * The matched contact is left untouched: whoever knows an email and phone must not be able to change what the
+     * driver has on file (name, email, language). The typed name and language are stored on the ride instead.
+     */
     private UUID guestContact(Guest g) {
         var existing = contacts.guestMatch(g.email(), g.phone());
         if (existing.isPresent()) {
-            // The name the driver knows is kept: whoever knows an email and phone must not be able to rename it.
-            contacts.updateGuestLanguage(existing.get().id(), g.language());
             return existing.get().id();
         }
         // The booking page shows the privacy notice before sending, hence notice_given = true.

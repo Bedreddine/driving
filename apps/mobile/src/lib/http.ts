@@ -61,14 +61,34 @@ export function onAuthChange(listener: (signedIn: boolean) => void) {
 async function send(method: string, path: string, body: unknown, token: string | null) {
   // A file upload (FormData) sets its own multipart content type.
   const form = typeof FormData !== 'undefined' && body instanceof FormData;
-  return fetch(`${baseUrl}${path}`, {
-    method,
-    headers: {
-      ...(body !== undefined && !form ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: form ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  // A dead connection would otherwise wait for minutes: give up and say "no connection" instead.
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), form ? 90_000 : 20_000);
+  try {
+    return await fetch(`${baseUrl}${path}`, {
+      method,
+      signal: abort.signal,
+      headers: {
+        ...(body !== undefined && !form ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: form ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** The server's error code, or one from the HTTP status when the answer is not ours (proxy page, outage). */
+function codeOf(status: number, data: unknown): string {
+  const code = (data as { error?: unknown } | undefined)?.error;
+  if (typeof code === 'string' && code) return code;
+  if (status === 429) return 'TOO_MANY_REQUESTS';
+  if (status === 401) return 'UNAUTHORIZED';
+  if (status === 403) return 'FORBIDDEN';
+  if (status === 404) return 'NOT_FOUND';
+  if (status >= 500) return 'INTERNAL';
+  return 'generic';
 }
 
 // One refresh at a time, even if several requests got 401 together.
@@ -103,9 +123,15 @@ export async function request<T>(method: string, path: string, body?: unknown): 
     throw new ApiError('NETWORK', 0);
   }
   if (res.status === 204) return undefined as T;
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : undefined;
-  if (!res.ok) throw new ApiError((data as { error?: string })?.error ?? 'generic', res.status);
+  let data: unknown;
+  try {
+    const text = await res.text();
+    data = text ? JSON.parse(text) : undefined;
+  } catch {
+    // not JSON (an HTML error page from a proxy) or the connection dropped mid-answer
+    throw new ApiError(res.ok ? 'NETWORK' : codeOf(res.status, undefined), res.status);
+  }
+  if (!res.ok) throw new ApiError(codeOf(res.status, data), res.status);
   return data as T;
 }
 

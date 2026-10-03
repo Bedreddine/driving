@@ -71,11 +71,6 @@ class ContactRepository {
                 .param("e", email).param("p", phone).query(Contact.class).optional();
     }
 
-    void updateGuestLanguage(UUID id, String language) {
-        jdbc.sql("update contacts set language = :l, updated_at = now() where id = :id")
-                .param("l", language).param("id", id).update();
-    }
-
     /** An account holder changed their profile: the driver sees the same name, phone and language. */
     void updateFromProfile(UUID userId, String fullName, String phone, String language) {
         jdbc.sql("update contacts set full_name = :n, phone = :p, language = :l, updated_at = now() where user_id = :u")

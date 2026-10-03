@@ -177,15 +177,53 @@ class GuestBookingIT extends IntegrationTest {
     @Test
     void aReturningGuestKeepsOneCustomerRecord() throws Exception {
         token(guestBook(VIP, ride(slot(10)), false));
-        // Same person, phone typed differently: still one record. The name the driver knows is kept
-        // (whoever knows someone's email and phone must not be able to rename them); the language follows.
+        // Same person, phone typed differently: still one record. What the driver has on file is kept
+        // (whoever knows someone's email and phone must not be able to change it); the typed values live on the ride.
         token(guestBook(client("Someone Else", "+447700900123", "SMITH@example.com", "fr"), ride(slot(58)), false));
         var contacts = jdbc.sql("select full_name, language from contacts where lower(email) = 'smith@example.com'").query().listOfRows();
-        assertThat(contacts).singleElement().satisfies(c -> assertThat(c).containsEntry("full_name", "Mr Smith").containsEntry("language", "fr"));
+        assertThat(contacts).singleElement().satisfies(c -> assertThat(c).containsEntry("full_name", "Mr Smith").containsEntry("language", "en"));
 
         // A different phone with the same email is another person (or a typo): a separate record, the driver can link them.
         token(guestBook(client("Mrs Smith", "+44 7700 900999", "smith@example.com", "en"), ride(slot(82)), false));
         assertThat(jdbc.sql("select count(*) from contacts where lower(email) = 'smith@example.com'").query(Integer.class).single()).isEqualTo(2);
+    }
+
+    @Test
+    void theRidePageShowsOnlyWhatWasTypedInThatBookingNotTheMatchedContact() throws Exception {
+        // First-time guest: sees their own name.
+        var own = token(guestBook(VIP, ride(slot(10)), false));
+        assertThat(call(get("/api/public/bookings/" + own), null, null, 200).get("client_name").asString()).isEqualTo("Mr Smith");
+        var before = jdbc.sql("select id, full_name, email, phone, language, updated_at from contacts where lower(email) = 'smith@example.com'")
+                .query().singleRow();
+
+        // Someone who knows the victim's email and phone books under another name.
+        var other = token(guestBook(client("Eve Attacker", "+44 7700-900123", "Smith@Example.com", "fr"),
+                ride(slot(58)), false));
+        var page = call(get("/api/public/bookings/" + other), null, null, 200);
+        assertThat(page.get("client_name").asString()).isEqualTo("Eve Attacker");
+        assertThat(page.toString()).doesNotContain("Mr Smith").doesNotContain("smith@example.com");
+
+        // Same customer record (one history for the driver), left exactly as it was.
+        var after = jdbc.sql("select id, full_name, email, phone, language, updated_at from contacts where lower(email) = 'smith@example.com'")
+                .query().singleRow();
+        assertThat(after).isEqualTo(before);
+        assertThat(jdbc.sql("select count(distinct contact_id) from rides where access_token in (:a, :b)")
+                .param("a", own).param("b", other).query(Integer.class).single()).isEqualTo(1);
+
+        // The email for that ride greets the typed name, in the typed language, never the name on file.
+        var mail = emails().getLast();
+        assertThat((String) mail.get("body")).startsWith("Bonjour Eve Attacker,").doesNotContain("Mr Smith");
+        // The first ride is unchanged.
+        assertThat(call(get("/api/public/bookings/" + own), null, null, 200).get("client_name").asString()).isEqualTo("Mr Smith");
+    }
+
+    @Test
+    void ridesWithoutATypedNameShowNoNameOnTheirPage() throws Exception {
+        // A guest ride booked before V11 (no guest_name): no name rather than the contact's.
+        var token = token(guestBook(VIP, ride(slot(10)), false));
+        jdbc.sql("update rides set guest_name = null, guest_language = null where access_token = :t").param("t", token).update();
+        var name = call(get("/api/public/bookings/" + token), null, null, 200).path("client_name");
+        assertThat(name.isNull() || name.isMissingNode()).as(name.toString()).isTrue();
     }
 
     @Test

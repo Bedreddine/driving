@@ -6,6 +6,8 @@ import { View } from 'react-native';
 import { useReducedMotion } from '@/lib/motion';
 import { boundsOf, loadNightStyle, mapColors, type LngLat } from '@/lib/mapStyle';
 import { night } from '@/lib/theme';
+import { useAuth } from '@/lib/auth';
+import { MapBoundary } from './MapBoundary';
 import { CenterPin, framePoints, fullPadding, PARIS, useRouteProgress, type MapSceneProps } from './shared';
 
 const line = (coords: LngLat[]) => ({ type: 'Feature' as const, properties: {}, geometry: { type: 'LineString' as const, coordinates: coords } });
@@ -40,6 +42,15 @@ function carElement() {
 
 /** Website version: maplibre-gl with the recoloured OpenFreeMap style. */
 export function MapScene(props: MapSceneProps) {
+  const { t } = useAuth();
+  return (
+    <MapBoundary style={props.style} label={t('mapUnavailable')}>
+      <MapView {...props} />
+    </MapBoundary>
+  );
+}
+
+function MapView(props: MapSceneProps) {
   const { pickup, dropoff, route, mode, focus, padding, candidates, car, you, style } = props;
   const box = useRef<HTMLDivElement | null>(null);
   const map = useRef<maplibregl.Map | null>(null);

@@ -37,7 +37,10 @@ class Notices {
         var driverRow = drivers.find(ride.driverId());
         var driver = driverRow.map(DriverRepository.Driver::userId).orElse(null);
         var timezone = driverRow.map(DriverRepository.Driver::timezone).orElse("Europe/Paris");
-        var customer = new RideChanged.Customer(contact.fullName(), contact.email(), contact.phone(), contact.language());
+        // Guest rides: greet with the name and language typed in this booking, not the matched contact's.
+        var customer = new RideChanged.Customer(
+                ride.guestName() != null ? ride.guestName() : contact.fullName(), contact.email(), contact.phone(),
+                ride.guestLanguage() != null ? ride.guestLanguage() : contact.language());
         var trip = new RideChanged.Trip(ride.pickup(), ride.pickupAddress(), ride.dropoffAddress(), ride.currency(),
                 ride.accessToken(), timezone);
         return new Change(ride.id(), contact.userId(), driver, customer, trip);

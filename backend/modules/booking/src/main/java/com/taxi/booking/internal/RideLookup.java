@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 class RideLookup implements RideDirectory {
 
     private static final String SELECT = """
-            select r.id, r.status, r.pickup_at, c.full_name as customer_name,
+            select r.id, r.status, r.pickup_at, coalesce(r.guest_name, c.full_name) as customer_name,
                    c.anonymized_at is not null as customer_forgotten
             from rides r join contacts c on c.id = r.contact_id""";
 

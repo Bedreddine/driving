@@ -1,25 +1,28 @@
 {
   "expo": {
-    "name": "Taxi",
-    "slug": "taxi-app",
+    "name": "Élysée Chauffeur",
+    "slug": "elysee-chauffeur",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.example.taxiapp",
-      "buildNumber": "1"
+      "bundleIdentifier": "fr.elyseechauffeur.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0D0F12",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.example.taxiapp",
+      "package": "fr.elyseechauffeur.app",
       "versionCode": 1
     },
     "web": {
@@ -33,13 +36,23 @@
       "expo-sqlite",
       "@react-native-community/datetimepicker",
       "expo-localization",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#E9A23B"
+        }
+      ],
       "expo-font",
       "@maplibre/maplibre-react-native",
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Pour placer votre point de prise en charge, ou pour montrer votre voiture au client pendant la course. / To set your pickup point, or to show your car to the client during the ride."
+          "locationWhenInUsePermission": "Pour placer votre point de prise en charge, ou pour montrer votre voiture au client pendant la course. / To set your pickup point, or to show your car to the client during the ride.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "locationAlwaysAndWhenInUsePermission": "Pour que le client voie votre voiture approcher, même écran verrouillé, pendant une course que vous partagez. / So the client sees your car approaching, even with the screen locked, during a ride you share."
         }
       ],
       [
@@ -47,11 +60,21 @@
         {
           "photosPermission": "Pour choisir votre photo de chauffeur. / To choose your driver photo."
         }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "backgroundColor": "#0D0F12",
+          "resizeMode": "contain"
+        }
       ]
     ],
-    "scheme": "taxiapp",
+    "scheme": "elyseechauffeur",
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "backgroundColor": "#0D0F12"
   }
 }

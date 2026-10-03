@@ -136,7 +136,9 @@ class PublicBookingController {
     PublicRide get(@PathVariable String token, HttpServletRequest request) {
         limitRidePage(request);
         var r = ride(token);
-        var clientName = contacts.find(r.contactId()).map(ContactRepository.Contact::fullName).orElse(null);
+        // Only what was typed in this booking: the link must not reveal what the driver has on file for a matched
+        // contact. Rides without a typed name (older guest rides, phone and account rides) show none.
+        var clientName = r.guestName();
         var reviewing = reviews.of(new RideDirectory.RideFacts(r.id(), r.status(), r.pickupAt(), clientName,
                 contacts.isAnonymized(r.contactId())));
         return new PublicRide(r.status(), r.pickupAt(), r.pickupAddress(), r.dropoffAddress(),

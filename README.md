@@ -55,8 +55,10 @@ npm install
 npm run backend        # Spring Boot on :8080; starts PostgreSQL in Docker automatically (backend/app/compose.yaml)
 cp apps/mobile/.env.example apps/mobile/.env
 npm run web            # back office + app in the browser
-npm run mobile         # phone: needs a development build because of the native map (see below); set EXPO_PUBLIC_API_URL to your computer's IP
+npm run mobile         # phone: needs a development build because of the native map (see docs/MOBILE.md); set EXPO_PUBLIC_API_URL to your computer's IP
 ```
+
+**Emails in development** go to [Mailpit](https://mailpit.axllent.org), a fake mailbox started with the database: every email the app sends (booking received, price proposal, reminders) appears at **http://localhost:8025**, nothing reaches real people. (Mailpit replaces MailHog, which is no longer maintained.)
 
 Test accounts (created on an empty database by the `dev` profile, used by `npm run backend`):
 
@@ -130,6 +132,7 @@ docker compose run --rm backend --taxi.make-owner=you@example.com --server.port=
 |---|---|
 | `docker compose logs -f backend` | Follow the server log (emails are written there until SMTP is set) |
 | `docker compose up -d --build` | Update after a code change |
+| `docker compose --profile mail up -d` | Also start Mailpit (http://localhost:8025) to see the emails; set `SMTP_HOST=mailpit` and `SMTP_PORT=1025` in `.env` |
 | `docker compose down` | Stop (data is kept in the `pgdata` volume) |
 | `docker compose down -v` | Stop **and erase all data** |
 | `docker compose exec postgres pg_dump -U taxi taxi > backup.sql` | Back up the database |
@@ -179,9 +182,7 @@ Expiry of unanswered requests (every minute), reminders for rides left open, pho
 - **SMS provider:** the sending is pluggable (`CustomerChannels.SmsSender`); choose a provider (paid per message) and wire it.
 - **Website address and domain:** decided at deployment; the QR code shows a warning until it is set.
 - **Legal pages:** fill in the company details in the back office and have the generated texts checked by a professional (accountant, lawyer, or your VTC federation).
-- **Live position from the driver's phone** is sent while the ride screen is open (the switch « Partager ma position en direct »). Sharing with the screen locked needs background location, not set up yet.
-- **Testing on a phone:** the map is a native module, so Expo Go cannot show it. Build a free development build once with EAS (`npx eas-cli build --profile development`) and install it on your phone; after that, `npm run mobile` works like Expo Go. The website needs nothing.
-- **Phone app release:** run `eas init` (your Expo account) for push notifications, add the Android Firebase file, replace the placeholder icon/splash and the `com.example.taxiapp` bundle ids, and set the real API address in `apps/mobile/eas.json`.
+- **Phone apps in the stores:** the apps are finished and build (name, icon, splash, `fr.elyseechauffeur.app` ids, background live position). Publishing needs your accounts (Expo, Google Play 25 $ once, Apple 99 $/year) and the server's address: see [docs/MOBILE.md](docs/MOBILE.md).
 - **Email links opening the app** (universal links): needs the final domain.
 - **Card payments** (phase 2): card payments always cost a fee per transaction, whoever the provider.
 - **Second driver:** the database supports it; bookings still go to the first active driver.

@@ -3,12 +3,23 @@ import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useReducedMotion } from '@/lib/motion';
 import { boundsOf, loadNightStyle, mapColors } from '@/lib/mapStyle';
+import { useAuth } from '@/lib/auth';
+import { MapBoundary } from './MapBoundary';
 import { CandidateMarker, CarMarker, CenterPin, framePoints, fullPadding, PARIS, Pin, useRouteProgress, YouDot, type MapSceneProps } from './shared';
 
 type StyleJson = Awaited<ReturnType<typeof loadNightStyle>>;
 
 /** Phone version: MapLibre React Native (needs a development build, not Expo Go). */
 export function MapScene(props: MapSceneProps) {
+  const { t } = useAuth();
+  return (
+    <MapBoundary style={props.style} label={t('mapUnavailable')}>
+      <MapView {...props} />
+    </MapBoundary>
+  );
+}
+
+function MapView(props: MapSceneProps) {
   const { pickup, dropoff, route, mode, focus, padding, onPress, onCenterChange, onPickupMove, onDropoffMove, candidates, onCandidatePress, car, you, style } = props;
   const [styleJson, setStyleJson] = useState<StyleJson | null>(null);
   const camera = useRef<CameraRef>(null);
@@ -66,9 +77,12 @@ export function MapScene(props: MapSceneProps) {
         onRegionDidChange={(e) => mode === 'pick' && onCenterChange?.(e.nativeEvent.center)}
       >
         <Camera ref={camera} initialViewState={{ center: focus ?? PARIS, zoom: 14.2, pitch: 55, bearing: -20 }} />
-        <GeoJSONSource id="route" data={{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: drawn.length > 1 ? drawn : [] } }}>
-          <Layer id="route-line" type="line" layout={{ 'line-cap': 'round', 'line-join': 'round' }} paint={{ 'line-color': mapColors.route, 'line-width': 4 }} />
-        </GeoJSONSource>
+        {/* The native map refuses a line with fewer than two points: no source at all until a route exists. */}
+        {drawn.length > 1 ? (
+          <GeoJSONSource id="route" data={{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: drawn } }}>
+            <Layer id="route-line" type="line" layout={{ 'line-cap': 'round', 'line-join': 'round' }} paint={{ 'line-color': mapColors.route, 'line-width': 4 }} />
+          </GeoJSONSource>
+        ) : null}
         {pickup && mode !== 'pick' ? (
           <ViewAnnotation
             id="pickup"

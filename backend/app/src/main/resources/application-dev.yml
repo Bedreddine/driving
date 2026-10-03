@@ -6,3 +6,11 @@ logging:
   level:
     # Development: show the full text of customer emails / SMS that are only logged (never on in production).
     com.taxi.notification.internal.CustomerChannels: DEBUG
+spring:
+  mail:
+    # Mailpit (compose.yaml): emails are caught locally, read them at http://localhost:8025
+    host: ${SPRING_MAIL_HOST:localhost}
+    port: ${SPRING_MAIL_PORT:1026}
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false

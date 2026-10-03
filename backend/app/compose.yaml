@@ -8,3 +8,11 @@ services:
       - 'POSTGRES_PASSWORD=taxi'
     ports:
       - '5432'
+
+  # Every email the app sends in development lands here instead of real inboxes: http://localhost:8025
+  # (Mailpit, MIT licence; the maintained successor of MailHog). SMTP on localhost:1026.
+  mailpit:
+    image: 'axllent/mailpit:latest'
+    ports:
+      - '1026:1025'
+      - '8025:8025'

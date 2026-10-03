@@ -14,7 +14,18 @@ import { useEffect } from 'react';
 import { colors } from '@/components/ui';
 import { NotificationTap } from '@/components/NotificationTap';
 import { AuthProvider, useAuth } from '@/lib/auth';
+// Registers the background location task when the app starts (also when woken up for a position).
+import '@/lib/driverTracking';
 import { registerForPush } from '@/lib/push';
+import { installErrorHandling } from '@/lib/errors';
+import { ErrorScreen } from '@/components/ErrorScreen';
+
+installErrorHandling();
+
+/** A screen that throws shows a calm « try again » page instead of a crash or a developer error. */
+export function ErrorBoundary(props: { error: Error; retry: () => Promise<void> }) {
+  return <ErrorScreen {...props} />;
+}
 
 function PushRegistration() {
   const { profile } = useAuth();

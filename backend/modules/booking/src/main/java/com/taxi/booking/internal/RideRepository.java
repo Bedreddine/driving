@@ -26,7 +26,8 @@ class RideRepository {
                    double dropoffLng, int distanceM, int durationS, int pickupAllowanceMin, Instant blockedUntil,
                    int passengers, int luggage, int childSeats, String vehicle, boolean meetGreet, String travelRef,
                    String customerNotes, String currency, boolean isFixedPrice, BigDecimal estimatedPrice,
-                   BigDecimal agreedPrice, Instant answerDeadline, String accessToken, List<double[]> route) {}
+                   BigDecimal agreedPrice, Instant answerDeadline, String accessToken, List<double[]> route,
+                   String guestName, String guestLanguage) {}
 
     static final Duration NEIGHBOUR_WINDOW = Duration.ofHours(12);
     private static final String HOLDING = "('accepted', 'price_proposed')";
@@ -60,12 +61,12 @@ class RideRepository {
                   pickup_lat, pickup_lng, dropoff_address, dropoff_lat, dropoff_lng, distance_m, duration_s,
                   pickup_allowance_min, blocked_range, passengers, luggage, child_seats, vehicle, meet_greet, travel_ref,
                   customer_notes, currency, is_fixed_price, estimated_price, agreed_price, answer_deadline, access_token,
-                  route)
+                  route, guest_name, guest_language)
                 values (:contactId, :driverId, :createdBy, :source, :status, :pickupAt, :pickupAddress,
                   :pickupLat, :pickupLng, :dropoffAddress, :dropoffLat, :dropoffLng, :distanceM, :durationS,
                   :pickupAllowanceMin, tstzrange(:pickupAt, :blockedUntil), :passengers, :luggage, :childSeats, :vehicle,
                   :meetGreet, :travelRef, :customerNotes, :currency, :isFixedPrice, :estimatedPrice, :agreedPrice,
-                  :answerDeadline, :accessToken, cast(:route as jsonb))
+                  :answerDeadline, :accessToken, cast(:route as jsonb), :guestName, :guestLanguage)
                 returning id""")
                 .param("contactId", r.contactId()).param("driverId", r.driverId()).param("createdBy", r.createdBy())
                 .param("source", r.source()).param("status", r.status().value()).param("pickupAt", utc(r.pickupAt()))
@@ -83,6 +84,7 @@ class RideRepository {
                 .param("answerDeadline", r.answerDeadline() == null ? null : utc(r.answerDeadline()))
                 .param("accessToken", r.accessToken())
                 .param("route", r.route() == null ? null : json.writeValueAsString(r.route()))
+                .param("guestName", r.guestName()).param("guestLanguage", r.guestLanguage())
                 .query(UUID.class).single();
     }
 
@@ -232,7 +234,7 @@ class RideRepository {
                 update rides set pickup_address = '(address removed)', dropoff_address = '(address removed)',
                   pickup_lat = round(pickup_lat::numeric, 2), pickup_lng = round(pickup_lng::numeric, 2),
                   dropoff_lat = round(dropoff_lat::numeric, 2), dropoff_lng = round(dropoff_lng::numeric, 2),
-                  customer_notes = null, travel_ref = null, route = null
+                  customer_notes = null, travel_ref = null, route = null, guest_name = null
                 where contact_id = :c""").param("c", contactId).update();
     }
 

@@ -16,7 +16,8 @@ public interface RideDirectory {
     Map<UUID, RideFacts> find(Collection<UUID> rideIds);
 
     /**
-     * @param customerName      the customer's current full name (read every time: follows profile changes)
+     * @param customerName      for a guest ride, the name typed in that booking; otherwise the customer's current
+     *                          full name (read every time: follows profile changes)
      * @param customerForgotten the customer was erased (GDPR): nothing personal may be shown about them
      */
     record RideFacts(UUID id, String status, OffsetDateTime pickupAt, String customerName, boolean customerForgotten) {

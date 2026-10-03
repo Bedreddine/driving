@@ -2,21 +2,30 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { api } from '@/lib/http';
 import { useAuth } from '@/lib/auth';
+import { backgroundSupported, isTracking, startTracking, stopTracking } from '@/lib/driverTracking';
 import { followPosition } from '@/lib/location';
 import { LiveDot } from './scene';
 import { Button, Muted, Notice, Row, Body } from './ui';
 
+type Mode = 'off' | 'background' | 'foreground';
+
 /**
  * The driver shares their live position for a confirmed ride: the client sees the car approach on their page.
- * Only while this screen is open (foreground); the server shows it only around the ride's time.
+ * Phones keep sharing with the screen locked when "always" location is allowed; otherwise (and on the website)
+ * only while this screen is open. The server shows it only around the ride's time.
  */
 export function LiveShare() {
   const { t, err } = useAuth();
-  const [on, setOn] = useState(false);
+  const [mode, setMode] = useState<Mode>('off');
   const [error, setError] = useState<string | null>(null);
 
+  // Background sharing survives closing the app: show it as on when coming back.
   useEffect(() => {
-    if (!on) return;
+    void isTracking().then((on) => on && setMode('background'));
+  }, []);
+
+  useEffect(() => {
+    if (mode !== 'foreground') return;
     let stop: (() => void) | null = null;
     let alive = true;
     void followPosition((p) => {
@@ -28,15 +37,30 @@ export function LiveShare() {
       if (!alive) s?.();
       else if (!s) {
         setError(t('locationRefused'));
-        setOn(false);
+        setMode('off');
       } else stop = s;
     });
     return () => {
       alive = false;
       stop?.();
     };
-  }, [on, t, err]);
+  }, [mode, t, err]);
 
+  const toggle = async () => {
+    setError(null);
+    if (mode === 'background') {
+      await stopTracking();
+      setMode('off');
+    } else if (mode === 'foreground') {
+      setMode('off');
+    } else {
+      const got = await startTracking({ title: t('sharingLocation'), body: t('sharingNotice') }).catch(() => 'foreground-only' as const);
+      if (got === 'denied') setError(t('locationRefused'));
+      else setMode(got === 'background' ? 'background' : 'foreground');
+    }
+  };
+
+  const on = mode !== 'off';
   return (
     <View style={{ gap: 8 }}>
       {on ? (
@@ -45,8 +69,9 @@ export function LiveShare() {
           <Body style={{ flex: 1 }}>{t('sharingLocation')}</Body>
         </Row>
       ) : null}
-      <Button kind={on ? 'secondary' : 'primary'} title={on ? t('stopSharing') : t('shareLocation')} onPress={() => setOn((v) => !v)} />
-      <Muted>{t('shareHelp')}</Muted>
+      <Button kind={on ? 'secondary' : 'primary'} title={on ? t('stopSharing') : t('shareLocation')} onPress={() => void toggle()} />
+      <Muted>{mode === 'background' ? t('shareHelpBackground') : t('shareHelp')}</Muted>
+      {mode === 'foreground' && backgroundSupported ? <Notice tone="info">{t('shareAlwaysHint')}</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
     </View>
   );
