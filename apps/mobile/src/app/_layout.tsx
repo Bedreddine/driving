@@ -8,6 +8,7 @@ import { Manrope_600SemiBold } from '@expo-google-fonts/manrope/600SemiBold';
 import { Manrope_700Bold } from '@expo-google-fonts/manrope/700Bold';
 import Feather from '@expo/vector-icons/Feather';
 import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -19,6 +20,8 @@ import { installErrorHandling } from '@/lib/errors';
 import { ErrorScreen } from '@/components/ErrorScreen';
 
 installErrorHandling();
+// The É splash stays up until the fonts are ready: no empty black screen while the app starts.
+void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 /** A screen that throws shows a calm « try again » page instead of a crash or a developer error. */
 export function ErrorBoundary(props: { error: Error; retry: () => Promise<void> }) {
@@ -46,8 +49,12 @@ export default function RootLayout() {
     JetBrainsMono_500Medium,
     ...Feather.font,
   });
+  const ready = fontsLoaded || !!fontError;
+  useEffect(() => {
+    if (ready) void SplashScreen.hideAsync().catch(() => undefined);
+  }, [ready]);
   // Without the fonts the page would jump once they arrive; if they fail, carry on with the system fonts.
-  if (!fontsLoaded && !fontError) return null;
+  if (!ready) return null;
 
   return (
     <AuthProvider>
