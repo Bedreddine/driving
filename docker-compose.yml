@@ -1,5 +1,5 @@
 # Runs the whole app: database, backend API and website.
-#   cp .env.example .env   (then set JWT_SECRET and the rest)
+#   ./scripts/docker-env.sh   (creates .env with random secrets; or copy .env.example and fill it in)
 #   docker compose up -d --build
 # Website + API: http://localhost:${WEB_PORT:-8080}  (put HTTPS in front in production, see README)
 

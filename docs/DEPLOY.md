@@ -76,7 +76,7 @@ The repository is private, so the server needs read access:
 git clone https://github.com/Bedreddine/driving.git ~/driving    # asks for your GitHub user + the contents token
 echo "<the read:packages token>" | docker login ghcr.io -u <your GitHub user> --password-stdin
 cd ~/driving
-cp .env.example .env
+./scripts/docker-env.sh    # .env with fresh random secrets
 nano .env
 ```
 

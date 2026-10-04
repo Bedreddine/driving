@@ -71,8 +71,8 @@ Test accounts (created on an empty database by the `dev` profile, used by `npm r
 
 ```bash
 npm test               # everything below
-npm run test:backend   # 125 tests: unit + integration on a real PostgreSQL (Testcontainers) + module boundaries
-npm run test:app       # 36 app tests (Paris time, prices, texts, reviewer names, map style, places, QR lines, remember-me)
+npm run test:backend   # 127 tests: unit + integration on a real PostgreSQL (Testcontainers) + module boundaries
+npm run test:app       # 42 app tests (Paris time, prices, texts, reviewer names, map style, places, QR animation, remember-me)
 cd apps/mobile && npx tsc --noEmit && npx expo lint
 ```
 
@@ -114,11 +114,11 @@ All JSON is snake_case. Errors come back as `{"error": "CODE"}` (e.g. `SLOT_TAKE
 One command runs the database, the backend API and the website (nothing else to install but Docker):
 
 ```bash
-cp .env.example .env        # then set POSTGRES_PASSWORD and JWT_SECRET (openssl rand -base64 48)
-docker compose up -d --build
+./scripts/docker-env.sh      # creates .env with a random database password and login secret (once)
+docker compose up -d --build # first build about 5 minutes, then seconds
 ```
 
-Open http://localhost:8080 (`/book` is the page the QR code opens). nginx serves the website and forwards `/api` and `/ws` to the backend, so everything lives on **one address** and the same images work on any domain.
+Open http://localhost:8080 (another port: set `WEB_PORT` in `.env`) (`/book` is the page the QR code opens). nginx serves the website and forwards `/api` and `/ws` to the backend, so everything lives on **one address** and the same images work on any domain.
 
 First-time setup of a fresh database:
 
@@ -136,6 +136,16 @@ docker compose run --rm backend --taxi.make-owner=you@example.com --server.port=
 | `docker compose down` | Stop (data is kept in the `pgdata` volume) |
 | `docker compose down -v` | Stop **and erase all data** |
 | `docker compose exec postgres pg_dump -U taxi taxi > backup.sql` | Back up the database |
+
+**If it does not start:**
+
+| You see | Cause | Fix |
+|---|---|---|
+| `container …-backend-1 is unhealthy` | The backend stopped at startup | `docker compose logs backend \| grep -A3 Description` says why |
+| `JWT_SECRET … is still the example value` | Secrets not set | `./scripts/docker-env.sh` (or set them in `.env`), then `docker compose up -d` |
+| `password authentication failed for user "taxi"` | The database was first created with another password | New install with no data to keep: `docker compose down -v`, then `docker compose up -d` |
+| `port is already allocated` | Port 8080 is used by another program | Set `WEB_PORT=8090` in `.env` |
+| Prices look wrong on a fresh install | Starting prices: 5 € + 1.60 €/km + 0.40 €/min, minimum 20 € | Back office › Tarifs |
 
 If port 8080 is already used on your computer, choose another: `WEB_PORT=8099 SITE_URL=http://localhost:8099 docker compose up -d`.
 
