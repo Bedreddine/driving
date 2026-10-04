@@ -8,6 +8,7 @@ import {
   Animated,
   Platform,
   Pressable,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -58,6 +59,7 @@ export function tick(kind: Haptic) {
  */
 export function Touchable({
   style,
+  layout,
   children,
   haptic = 'select',
   pressScale = 0.96,
@@ -71,10 +73,15 @@ export function Touchable({
   children?: ReactNode | ((s: PressState) => ReactNode);
   haptic?: Haptic;
   pressScale?: number;
+  /** Size and place in the parent (flex, width…), when `style` is a function of the press state. */
+  layout?: ViewStyle;
 }) {
   const theme = useTheme();
   const reduced = useReducedMotion();
   const [scale] = useState(() => new Animated.Value(1));
+  // Sizing in a row or column (flex: 1, alignSelf, width) belongs to the outer pressable, which is what the
+  // parent lays out; the inner layer keeps the look. Otherwise `flex: 1` buttons never share a row.
+  const outer = layout ?? (typeof style === 'function' ? undefined : pickLayout(StyleSheet.flatten(style)));
   const springTo = (v: number) =>
     Animated.spring(scale, { toValue: v, useNativeDriver: nativeDriver, speed: 50, bounciness: 0 }).start();
   return (
@@ -94,6 +101,7 @@ export function Touchable({
         onPress?.(e);
       }}
       {...props}
+      style={outer}
     >
       {(raw) => {
         const s = { pressed: raw.pressed, hovered: !!(raw as { hovered?: boolean }).hovered, focused: !!(raw as { focused?: boolean }).focused };
@@ -107,6 +115,14 @@ export function Touchable({
       }}
     </Pressable>
   );
+}
+
+const LAYOUT_KEYS = ['flex', 'flexGrow', 'flexShrink', 'flexBasis', 'alignSelf', 'width', 'minWidth', 'maxWidth'] as const;
+function pickLayout(st: ViewStyle | undefined): ViewStyle | undefined {
+  if (!st) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const k of LAYOUT_KEYS) if (st[k] !== undefined) out[k] = st[k];
+  return Object.keys(out).length ? (out as ViewStyle) : undefined;
 }
 
 type ButtonProps = {
@@ -146,6 +162,7 @@ export function Button({ title, onPress, kind = 'primary', size = 'md', icon, tr
       disabled={inactive}
       haptic={solid ? 'impact' : 'select'}
       pressScale={size === 'sm' ? 0.95 : 0.97}
+      layout={pickLayout(StyleSheet.flatten(style))}
       style={({ pressed, hovered }) => {
         const live = !inactive;
         return [
