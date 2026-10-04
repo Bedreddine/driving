@@ -2,7 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Link, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { BackHandler, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ClientTopBar } from '@/components/ClientTopBar';
 import { LegalLinks } from '@/components/LegalScreen';
@@ -11,7 +11,7 @@ import { DateTimeField } from '@/components/DateTimeField';
 import { MapScene } from '@/components/map/MapScene';
 import { PARIS } from '@/components/map/shared';
 import { Chip, CountUp, Display, MonoLine, PlaceRow, PriceDetail, Rise, Section, Tabs } from '@/components/scene';
-import { ArrowRight, Button, Field, Icon, Muted, Notice, Stepper, Toggle } from '@/components/ui';
+import { ArrowRight, Button, Field, Icon, Muted, Notice, Stepper, Toggle, Touchable } from '@/components/ui';
 import type { BookingInput, BookingResult, DriverInfo, Place } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDateTime, formatKm, formatMinutes, formatPrice, formatTime, fromWallClock, toWallClock } from '@/lib/format';
@@ -339,6 +339,16 @@ export default function Experience() {
     setWhen(iso);
   };
 
+  // Android back button: one step back in the booking, never out of the app mid-way.
+  useEffect(() => {
+    if (stage === 'landing') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setStage(stage === 'where' ? (pickup && dropoff ? 'trip' : 'landing') : 'where');
+      return true;
+    });
+    return () => sub.remove();
+  }, [stage, pickup, dropoff]);
+
   // ----- layout -----
   const route: LngLat[] | null =
     stage === 'trip' && pickup && dropoff ? (priced?.route ?? (current ? [lngLatOf(pickup), lngLatOf(dropoff)] : null)) : null;
@@ -480,20 +490,40 @@ export default function Experience() {
           ) : null}
           <Rise index={5} style={{ marginTop: 14, gap: 4 }}>
             {mine.slice(0, 2).map((r) => (
-              <Link key={r.token} href={{ pathname: '/b/[token]', params: { token: r.token } }} style={{ fontFamily: fonts.mono, fontSize: 12.5, color: night.primary }}>
-                {formatDateTime(r.pickup_at, lang)} · {shortName(r.from)} → {shortName(r.to)}
-              </Link>
+              <Touchable
+                key={r.token}
+                accessibilityRole="link"
+                accessibilityLabel={`${t('yourRide')}: ${formatDateTime(r.pickup_at, lang)}, ${shortName(r.from)} → ${shortName(r.to)}`}
+                onPress={() => router.push({ pathname: '/b/[token]', params: { token: r.token } })}
+                style={({ pressed, hovered }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                  minHeight: 56,
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderRadius: radius.control,
+                  borderWidth: 1.5,
+                  borderColor: hovered || pressed ? night.primary : night.edge,
+                  backgroundColor: pressed ? night.controlHover : night.control,
+                })}
+              >
+                <Icon name="clock" size={18} color={night.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: fonts.semibold, fontSize: 14.5, color: night.text }}>{formatDateTime(r.pickup_at, lang)}</Text>
+                  <Text numberOfLines={1} style={{ fontFamily: fonts.mono, fontSize: 12, color: night.label }}>
+                    {shortName(r.from).toUpperCase()} → {shortName(r.to).toUpperCase()}
+                  </Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={night.label} />
+              </Touchable>
             ))}
-            <View style={{ flexDirection: 'row', gap: 18, flexWrap: 'wrap', marginTop: 4 }}>
+            <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginTop: 6 }}>
               {business?.phone ? (
-                <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: night.muted }} onPress={() => void Linking.openURL(`tel:${business.phone}`)}>
-                  {t('call')}
-                </Text>
+                <Button kind="secondary" size="sm" icon="phone" title={t('call')} onPress={() => void Linking.openURL(`tel:${business.phone}`)} />
               ) : null}
               {whatsapp ? (
-                <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: night.muted }} onPress={() => void Linking.openURL(`https://wa.me/${whatsapp}`)}>
-                  WhatsApp
-                </Text>
+                <Button kind="secondary" size="sm" icon="message-circle" title="WhatsApp" onPress={() => void Linking.openURL(`https://wa.me/${whatsapp}`)} />
               ) : null}
               {profile || again || recents.length ? (
                 <Text
@@ -514,8 +544,9 @@ export default function Experience() {
                   {t('forgetMe')}
                 </Text>
               ) : null}
-              <Link href="/sign-in" style={{ fontFamily: fonts.medium, fontSize: 13, color: night.muted }}>
-                {t('alreadyClient')}
+              <Link href="/sign-in" accessibilityRole="link" style={{ fontFamily: fonts.medium, fontSize: 14, color: night.muted, paddingVertical: 10 }}>
+                {t('alreadyClientQ')}{' '}
+                <Text style={{ fontFamily: fonts.bold, color: night.primary, textDecorationLine: 'underline' }}>{t('signIn')}</Text>
               </Link>
             </View>
             <LegalLinks />
