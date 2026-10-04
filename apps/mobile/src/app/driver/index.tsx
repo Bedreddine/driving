@@ -40,14 +40,16 @@ export default function DriverHome() {
 
   return (
     <Screen>
-      <Row style={{ gap: 8, flexWrap: 'wrap' }}>
-        <Button icon="plus" title={t('quickAdd')} onPress={() => router.push('/driver/quick-add')} style={{ flex: 1 }} />
-        <Button kind="secondary" icon="grid" title={t('showQr')} onPress={() => router.push('/driver/qr')} />
-        <Button kind="secondary" icon="slash" title={t('timeOff')} onPress={() => router.push('/driver/time-off')} />
-        {Platform.OS === 'web' && roles.includes('admin') ? (
-          <Button kind="secondary" icon="briefcase" title={t('backOffice')} onPress={() => router.push('/admin')} />
-        ) : null}
+      {/* One main action on its own line, the others share the next: a wrapping row with a growing
+          button mis-measures its height on Android and the list below drew over it. */}
+      <Button size="lg" icon="plus" title={t('quickAdd')} onPress={() => router.push('/driver/quick-add')} />
+      <Row style={{ gap: 8 }}>
+        <Button kind="secondary" icon="grid" title={t('showQr')} onPress={() => router.push('/driver/qr')} style={{ flex: 1 }} />
+        <Button kind="secondary" icon="slash" title={t('timeOff')} onPress={() => router.push('/driver/time-off')} style={{ flex: 1 }} />
       </Row>
+      {Platform.OS === 'web' && roles.includes('admin') ? (
+        <Button kind="secondary" icon="briefcase" title={t('backOffice')} onPress={() => router.push('/admin')} />
+      ) : null}
       <ErrorText>{error ? err(error) : null}</ErrorText>
       {rides === null ? <Loading /> : null}
 
