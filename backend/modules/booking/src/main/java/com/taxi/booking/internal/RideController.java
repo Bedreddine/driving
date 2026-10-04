@@ -36,9 +36,11 @@ class RideController {
     /**
      * One ride with its road for the map (only here, not in lists: up to 400 points each).
      *
-     * @param route [lng, lat] points, or null when the road was not known at booking time
+     * @param route   [lng, lat] points, or null when the road was not known at booking time
+     * @param moments the driver's ride-day moments (on_the_way, arriving, arrived), oldest first
      */
-    record RideDetail(@JsonUnwrapped Ride ride, ContactSummary contact, List<double[]> route) {}
+    record RideDetail(@JsonUnwrapped Ride ride, ContactSummary contact, List<double[]> route,
+                      List<RideMoments.Moment> moments) {}
 
     record Reason(@Size(max = 500) String reason) {}
 
@@ -55,9 +57,12 @@ class RideController {
     private final ContactRepository contacts;
     private final CurrentUser currentUser;
     private final DriverTracking tracking;
+    private final RideMoments moments;
 
     RideController(BookingService booking, RideLifecycle lifecycle, RideRepository rides, DriverRepository drivers,
-                   ContactRepository contacts, CurrentUser currentUser, DriverTracking tracking) {
+                   ContactRepository contacts, CurrentUser currentUser, DriverTracking tracking,
+                   RideMoments moments) {
+        this.moments = moments;
         this.booking = booking;
         this.lifecycle = lifecycle;
         this.rides = rides;
@@ -95,7 +100,7 @@ class RideController {
             throw ApiException.notFound();
         }
         var view = withContacts(List.of(ride)).getFirst();
-        return new RideDetail(ride, view.contact(), rides.route(ride.id()));
+        return new RideDetail(ride, view.contact(), rides.route(ride.id()), moments.of(ride.id()));
     }
 
     /**

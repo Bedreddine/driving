@@ -46,6 +46,11 @@ final class CustomerTexts {
         return new Email(subject, body.toString());
     }
 
+    /** The one-line text of a notice, e.g. for a browser push. */
+    static String line(String kind, Map<String, Object> payload, String language, RideChanged.Trip trip) {
+        return headline(kind, payload, "en".equals(language), trip);
+    }
+
     static String sms(String kind, Map<String, Object> payload, RideChanged.Customer c, RideChanged.Trip trip,
                       Business.Info business) {
         var en = "en".equals(c.language());
@@ -69,6 +74,9 @@ final class CustomerTexts {
             case "ride_cancelled_confirmation" -> en ? "Cancellation confirmed" : "Annulation confirmée";
             case "ride_expired" -> en ? "Booking request expired" : "Demande expirée";
             case "ride_completed" -> en ? "Thank you for riding with us" : "Merci pour votre confiance";
+            case "driver_on_the_way" -> en ? "Your driver is on the way" : "Votre chauffeur est en route";
+            case "driver_arriving" -> en ? "Your driver is arriving" : "Votre chauffeur arrive";
+            case "driver_arrived" -> en ? "Your driver has arrived" : "Votre chauffeur est arrivé";
             default -> en ? "Ride update" : "Mise à jour de votre course";
         };
     }
@@ -95,6 +103,13 @@ final class CustomerTexts {
                     ? "Thank you for your ride. Total: " + money(p.get("final_price"), trip, true) + "."
                     : "Merci pour votre course. Total : " + money(p.get("final_price"), trip, false) + ".")
                     + reason(p, en);
+            case "driver_on_the_way" -> en ? "Your driver is on the way." : "Votre chauffeur est en route.";
+            case "driver_arriving" -> en
+                    ? "Your driver will arrive in about 5 minutes."
+                    : "Votre chauffeur arrive dans environ 5 minutes.";
+            case "driver_arrived" -> en
+                    ? "Your driver has arrived at the pickup point."
+                    : "Votre chauffeur est arrivé au point de prise en charge.";
             default -> en ? "Your ride was updated." : "Votre course a été mise à jour.";
         };
     }

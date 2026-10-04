@@ -1,6 +1,8 @@
 // All calls to the Spring Boot API in one place.
 
+import type { ChatMessage } from './chat';
 import { api, ApiError } from './http';
+import type { Moment } from './moments';
 
 export type RideStatus =
   | 'requested'
@@ -48,6 +50,8 @@ export type Ride = {
   created_at: string;
   access_token: string;
   contact?: { id: string; full_name: string; phone: string | null; email: string | null; language: 'fr' | 'en' } | null;
+  /** The driver's live moments (on the way, arriving, arrived), ride detail only. */
+  moments?: Moment[];
 };
 
 export type Place = { lat: number; lng: number; address: string };
@@ -124,6 +128,12 @@ export const cancelRide = (id: string, reason?: string) => act(id, 'cancel', { r
 export const completeRide = (id: string, finalPrice?: number, reason?: string) =>
   act(id, 'complete', { final_price: finalPrice ?? null, reason: reason ?? null });
 export const markNoShow = (id: string) => act(id, 'no-show');
+/** "Je suis en route" / "Je suis arrivé" (confirmed rides only; sending it twice changes nothing). */
+export const postMoment = (id: string, kind: 'on_the_way' | 'arrived') => act(id, 'moments', { kind });
+
+/** Messages with the client about one ride, oldest first. */
+export const getRideMessages = (id: string) => api.get<ChatMessage[]>(`/api/rides/${id}/messages`);
+export const sendRideMessage = (id: string, body: string) => api.post<ChatMessage>(`/api/rides/${id}/messages`, { body });
 export const linkContacts = (accountContact: string, existing: string) =>
   api.post<void>('/api/admin/contact-links', { account_contact_id: accountContact, existing_contact_id: existing });
 
@@ -151,7 +161,7 @@ export const requestConflicts = () => api.get<Record<string, string>>('/api/ride
 export const deleteMyAccount = () => api.del<void>('/api/me');
 
 /** Re-render when any visible ride changes (WebSocket live updates, see liveUpdates.ts). */
-export { subscribeRides } from './liveUpdates';
+export { subscribeRideMessages, subscribeRides } from './liveUpdates';
 
 export type DriverInfo = {
   id: string;

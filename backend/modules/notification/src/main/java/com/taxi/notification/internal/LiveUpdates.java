@@ -27,7 +27,8 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
 
 /**
  * Live updates: open screens connect to /ws?token=ACCESS_TOKEN and receive {"type":"rides-changed"}
- * whenever one of their rides changes, then reload. (Browsers cannot send headers on WebSocket, hence the query.)
+ * whenever one of their rides changes, then reload; and {"type":"ride-message","ride_id":"..."} when a message
+ * arrives in a ride's conversation. (Browsers cannot send headers on WebSocket, hence the query.)
  */
 @Component
 class LiveUpdates extends TextWebSocketHandler {
@@ -55,11 +56,19 @@ class LiveUpdates extends TextWebSocketHandler {
     }
 
     void ridesChanged(Collection<UUID> userIds) {
+        send(userIds, RIDES_CHANGED);
+    }
+
+    void rideMessage(Collection<UUID> userIds, UUID rideId) {
+        send(userIds, new TextMessage("{\"type\":\"ride-message\",\"ride_id\":\"" + rideId + "\"}"));
+    }
+
+    private void send(Collection<UUID> userIds, TextMessage message) {
         for (var userId : Set.copyOf(userIds)) {
             for (var s : sessions.getOrDefault(userId, Set.of())) {
                 try {
                     if (s.isOpen()) {
-                        s.sendMessage(RIDES_CHANGED);
+                        s.sendMessage(message);
                     }
                 } catch (IOException | IllegalStateException e) {
                     log.debug("Could not notify a closed session: {}", e.getMessage());

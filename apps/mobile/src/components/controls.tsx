@@ -29,7 +29,7 @@ export function Icon({ name, size = 18, color }: { name: IconName; size?: number
 }
 
 /** Interaction shades of the palette, so hover and press never invent new colours. */
-const shades = {
+export const shades = {
   primaryHover: '#F2B254',
   primaryPressed: '#D8922F',
   amberTint: 'rgba(233,162,59,0.14)',

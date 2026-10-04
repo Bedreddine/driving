@@ -230,6 +230,9 @@ class RideRepository {
     /** Keep rides for accounting without personal data. */
     void stripPersonalData(UUID contactId) {
         // (also used by the back office to erase a phone customer on request)
+        // Messages between driver and client are personal data: deleted, not anonymised.
+        jdbc.sql("delete from ride_messages where ride_id in (select id from rides where contact_id = :c)")
+                .param("c", contactId).update();
         jdbc.sql("""
                 update rides set pickup_address = '(address removed)', dropoff_address = '(address removed)',
                   pickup_lat = round(pickup_lat::numeric, 2), pickup_lng = round(pickup_lng::numeric, 2),
@@ -240,6 +243,11 @@ class RideRepository {
 
     /** Retention: see the design doc, "Privacy and data". */
     void applyRetention() {
+        // Messages between driver and client are only useful around the ride: kept 90 days after pickup
+        // (like the notifications and customer emails about it).
+        jdbc.sql("""
+                delete from ride_messages m using rides r
+                where m.ride_id = r.id and r.pickup_at < now() - interval '90 days'""").update();
         jdbc.sql("""
                 delete from rides where status in ('declined', 'declined_by_customer', 'expired', 'cancelled')
                   and updated_at < now() - interval '12 months'""").update();

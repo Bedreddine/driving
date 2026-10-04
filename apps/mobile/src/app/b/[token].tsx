@@ -1,28 +1,47 @@
 import { Link, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Linking, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ChatPanel } from '@/components/ChatPanel';
 import { ClientTopBar } from '@/components/ClientTopBar';
 import { LegalLinks } from '@/components/LegalScreen';
 import { MapScene } from '@/components/map/MapScene';
+import { MomentBanner } from '@/components/Moments';
 import { ReviewForm } from '@/components/Reviews';
 import { hasVehicle, VehicleCard } from '@/components/Vehicle';
+import { WebPushToggle } from '@/components/WebPushToggle';
 import { AboardMenu, Display, LiveDot, MonoLine, Rise, Timeline, type TimelineStep } from '@/components/scene';
-import { Body, Button, ErrorText, Loading, Muted } from '@/components/ui';
+import { Body, Button, ErrorText, Icon, Loading, Muted, Touchable } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
+import { chatOpen } from '@/lib/chat';
 import { confirmAsk } from '@/lib/confirm';
 import { encodePlace } from '@/lib/guestProfile';
 import { formatDateTime, formatDay, formatKm, formatMinutes, formatPrice, formatTime } from '@/lib/format';
 import { apiUrl } from '@/lib/http';
 import type { TextKey } from '@/lib/i18n';
 import type { LngLat } from '@/lib/mapStyle';
+import { latestMoment, momentTitleKey, sortMoments } from '@/lib/moments';
 import { shortName, SUGGESTED_PLACES } from '@/lib/places';
-import { type BusinessInfo, cancelAsGuest, type DriverPosition, getBusiness, getDriverPosition, getGuestRide, type PublicRide, respondAsGuest } from '@/lib/publicApi';
-import { fonts, night } from '@/lib/theme';
+import {
+  type BusinessInfo,
+  cancelAsGuest,
+  type DriverPosition,
+  getBusiness,
+  getDriverPosition,
+  getGuestMessages,
+  getGuestRide,
+  type PublicRide,
+  respondAsGuest,
+  sendGuestMessage,
+} from '@/lib/publicApi';
+import { fonts, night, radius } from '@/lib/theme';
 import { useDocumentTitle } from '@/lib/useDocumentTitle';
+import { useNow } from '@/lib/useNow';
 
 const REFRESH_MS = 30_000;
+/** Guests have no live connection: new messages are checked this often while the page is open. */
+const CHAT_POLL_MS = 5_000;
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const short = (address: string) => SUGGESTED_PLACES.find((p) => p.address === address)?.short ?? shortName(address);
@@ -34,9 +53,17 @@ function statusColor(status: PublicRide['status']) {
   return night.error;
 }
 
-/** Where the ride stands, for the timeline. Rides that ended without happening have none. */
+/** Where the ride stands, for the timeline, with the driver's live moments (on the way, arriving, arrived)
+ * between the confirmation and the pickup. Rides that ended without happening have none. */
 function timelineOf(ride: PublicRide, t: (k: TextKey) => string, lang: 'fr' | 'en'): { steps: TimelineStep[]; reached: number } | null {
-  const reachedByStatus: Partial<Record<PublicRide['status'], number>> = { requested: 0, price_proposed: 1, accepted: 1, completed: 2 };
+  const live = ride.status === 'accepted' || ride.status === 'completed' ? sortMoments(ride.moments) : [];
+  const moments: TimelineStep[] = live.map((m) => ({ title: t(momentTitleKey(m.kind)), detail: t('momentAt').replace('{time}', formatTime(m.at, lang)) }));
+  const reachedByStatus: Partial<Record<PublicRide['status'], number>> = {
+    requested: 0,
+    price_proposed: 1,
+    accepted: 1 + moments.length,
+    completed: 2 + moments.length,
+  };
   const reached = reachedByStatus[ride.status];
   if (reached === undefined) return null;
   const second: TimelineStep =
@@ -48,6 +75,7 @@ function timelineOf(ride: PublicRide, t: (k: TextKey) => string, lang: 'fr' | 'e
     steps: [
       { title: t('tl_sent'), detail: reached === 0 ? t('tl_sentDetail') : undefined },
       second,
+      ...moments,
       { title: ride.status === 'completed' ? t('tl_done') : `${t('tl_pickup')} · ${formatTime(ride.pickup_at, lang)}` },
     ],
   };
@@ -66,6 +94,18 @@ export default function GuestRide() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [driverAt, setDriverAt] = useState<DriverPosition | null>(null);
+  const now = useNow();
+  // Messages: is the panel on screen? New ones while it is not show a shortcut near the top.
+  const scroller = useRef<ScrollView>(null);
+  const view = useRef({ y: 0, h: 0, chatY: -1, chatH: 0 });
+  const [chatInView, setChatInView] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const measureChat = () => {
+    const v = view.current;
+    if (v.chatY >= 0) setChatInView(v.chatY < v.y + v.h && v.chatY + v.chatH > v.y);
+  };
+  const loadMessages = useCallback(() => getGuestMessages(token), [token]);
+  const sendMessage = useCallback((body: string) => sendGuestMessage(token, body), [token]);
 
   const load = useCallback(
     () =>
@@ -141,6 +181,8 @@ export default function GuestRide() {
           ? { amount: ride.proposed_price, label: 'proposedPrice' }
           : { amount: ride.estimated_price, label: ride.is_fixed_price ? 'fixedPrice' : 'estimate' };
   const timeline = ride ? timelineOf(ride, t, lang) : null;
+  // The newest moment of the driver, at the top while the ride is on.
+  const moment = ride?.status === 'accepted' ? latestMoment(ride.moments) : null;
   const showReview = ride?.status === 'completed' && (ride.can_review || ride.review);
   const pickup: LngLat | null = ride?.pickup ? [ride.pickup.lng, ride.pickup.lat] : null;
   const dropoff: LngLat | null = ride?.dropoff ? [ride.dropoff.lng, ride.dropoff.lat] : null;
@@ -175,6 +217,17 @@ export default function GuestRide() {
       {!wide ? <ClientTopBar name={business?.name} /> : null}
 
       <ScrollView
+        ref={scroller}
+        scrollEventThrottle={100}
+        onScroll={(e) => {
+          view.current.y = e.nativeEvent.contentOffset.y;
+          view.current.h = e.nativeEvent.layoutMeasurement.height;
+          measureChat();
+        }}
+        onLayout={(e) => {
+          view.current.h = e.nativeEvent.layout.height;
+          measureChat();
+        }}
         style={wide ? { width: 480, flexGrow: 0, borderRightWidth: 1, borderRightColor: night.rule } : { flex: 1 }}
         contentContainerStyle={{ padding: 22, paddingTop: wide ? insets.top + 76 : 22, paddingBottom: insets.bottom + 28, gap: 16 }}
       >
@@ -189,6 +242,37 @@ export default function GuestRide() {
 
         {ride ? (
           <>
+            {moment ? (
+              <Rise index={1}>
+                <MomentBanner moment={moment} />
+              </Rise>
+            ) : null}
+            {unread > 0 && !chatInView ? (
+              <Touchable
+                accessibilityRole="button"
+                accessibilityLabel={unread === 1 ? t('chatNewOne') : t('chatNewMany').replace('{n}', String(unread))}
+                onPress={() => scroller.current?.scrollTo({ y: Math.max(0, view.current.chatY - 16), animated: true })}
+                pressScale={0.96}
+                style={({ hovered, pressed }) => ({
+                  alignSelf: 'flex-start',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  minHeight: 44,
+                  paddingHorizontal: 16,
+                  borderRadius: radius.pill,
+                  borderWidth: 1.5,
+                  borderColor: night.primary,
+                  backgroundColor: pressed ? night.edge : hovered ? night.controlHover : night.control,
+                })}
+              >
+                <Icon name="message-circle" size={16} color={night.primary} />
+                <Text accessibilityLiveRegion="polite" style={{ fontFamily: fonts.semibold, fontSize: 14.5, color: night.text }}>
+                  {unread === 1 ? t('chatNewOne') : t('chatNewMany').replace('{n}', String(unread))}
+                </Text>
+                <Icon name="arrow-down" size={16} color={night.label} />
+              </Touchable>
+            ) : null}
             <Rise index={1} style={{ gap: 8 }}>
               <MonoLine>{`${short(ride.pickup_address)} → ${short(ride.dropoff_address)}`}</MonoLine>
               <MonoLine style={{ color: statusColor(ride.status) }}>{t(`board_${ride.status}` as TextKey)}</MonoLine>
@@ -219,6 +303,26 @@ export default function GuestRide() {
                 <Button kind="secondary" icon="x" title={t('refusePrice')} loading={busy === 'no'} onPress={() => act('no', () => respondAsGuest(token, false))} />
               </View>
             ) : null}
+
+            <View
+              onLayout={(e) => {
+                view.current.chatY = e.nativeEvent.layout.y;
+                view.current.chatH = e.nativeEvent.layout.height;
+                measureChat();
+              }}
+            >
+              <ChatPanel
+                me="client"
+                load={loadMessages}
+                send={sendMessage}
+                open={chatOpen(ride.status, ride.pickup_at, now)}
+                pollMs={CHAT_POLL_MS}
+                inView={chatInView}
+                onUnread={setUnread}
+                quickReplies={[t('qrClientEntrance'), t('qrClientFlightLate'), t('qrClientFiveMin'), t('qrClientWhere')]}
+              />
+            </View>
+            {open ? <WebPushToggle token={token} /> : null}
 
             {showReview ? (
               <Rise index={3}>

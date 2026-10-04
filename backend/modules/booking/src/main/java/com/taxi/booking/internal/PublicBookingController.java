@@ -52,6 +52,7 @@ class PublicBookingController {
      * @param canReview true once the ride is completed, while the review is not moderated yet
      * @param review    the client's review of this ride, or null
      * @param route     the road for the map as [lng, lat] points, or null when not known
+     * @param moments   the driver's ride-day moments (on_the_way, arriving, arrived), oldest first
      */
     record PublicRide(String status, OffsetDateTime pickupAt, String pickupAddress, String dropoffAddress,
                       Point pickup, Point dropoff,
@@ -59,7 +60,8 @@ class PublicBookingController {
                       String customerNotes, int distanceM, int durationS, String currency, boolean isFixedPrice,
                       BigDecimal estimatedPrice, BigDecimal proposedPrice, BigDecimal agreedPrice,
                       BigDecimal finalPrice, OffsetDateTime answerDeadline, String cancelReason, String clientName,
-                      boolean canReview, RideReviews.Review review, List<double[]> route) {}
+                      boolean canReview, RideReviews.Review review, List<double[]> route,
+                      List<RideMoments.Moment> moments) {}
 
     record Point(double lat, double lng) {}
 
@@ -78,6 +80,7 @@ class PublicBookingController {
     private final DriverTracking tracking;
     private final int maxTracking;
     private final int maxRidePage;
+    private final RideMoments moments;
 
     PublicBookingController(BookingService booking, RideLifecycle lifecycle, RideRepository rides,
                             ContactRepository contacts, DriverRepository drivers, Pricing pricing, RideReviews reviews,
@@ -86,7 +89,9 @@ class PublicBookingController {
                             @Value("${taxi.public.max-quotes-per-hour:60}") int maxQuotes,
                             DriverTracking tracking,
                             @Value("${taxi.public.max-tracking-per-minute:60}") int maxTracking,
-                            @Value("${taxi.public.max-ride-page-per-hour:600}") int maxRidePage) {
+                            @Value("${taxi.public.max-ride-page-per-hour:600}") int maxRidePage,
+                            RideMoments moments) {
+        this.moments = moments;
         this.maxRidePage = maxRidePage;
         this.booking = booking;
         this.lifecycle = lifecycle;
@@ -146,7 +151,7 @@ class PublicBookingController {
                 r.luggage(), r.childSeats(), r.vehicle(), r.meetGreet(), r.travelRef(), r.customerNotes(), r.distanceM(),
                 r.durationS(), r.currency(), r.isFixedPrice(), r.estimatedPrice(), r.proposedPrice(),
                 r.agreedPrice(), r.finalPrice(), r.answerDeadline(), r.cancelReason(), clientName,
-                reviewing.canReview(), reviewing.review(), rides.route(r.id()));
+                reviewing.canReview(), reviewing.review(), rides.route(r.id()), moments.of(r.id()));
     }
 
     /** Where the driver is (the page polls every few seconds); 204 when it must not or cannot be shown. */

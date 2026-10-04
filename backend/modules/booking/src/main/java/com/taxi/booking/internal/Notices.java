@@ -63,6 +63,22 @@ class Notices {
             this.trip = trip;
         }
 
+        UUID customerUser() {
+            return customerUser;
+        }
+
+        UUID driverUser() {
+            return driverUser;
+        }
+
+        RideChanged.Customer customer() {
+            return customer;
+        }
+
+        RideChanged.Trip trip() {
+            return trip;
+        }
+
         Change tellCustomer(String kind) {
             return tellCustomer(kind, Map.of());
         }

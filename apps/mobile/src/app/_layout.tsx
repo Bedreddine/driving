@@ -17,9 +17,11 @@ import { NotificationTap } from '@/components/NotificationTap';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { registerForPush } from '@/lib/push';
 import { installErrorHandling } from '@/lib/errors';
+import { installWebAppLinks } from '@/lib/webApp';
 import { ErrorScreen } from '@/components/ErrorScreen';
 
 installErrorHandling();
+installWebAppLinks();
 // The É splash stays up until the fonts are ready: no empty black screen while the app starts.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 

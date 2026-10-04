@@ -81,8 +81,19 @@ taxi:
     max-reviews-per-hour: 20
     # Live driver position on the ride page, per visitor IP and per minute (the page polls every 5 s).
     max-tracking-per-minute: 60
-    # Private ride page (/b/<token>: view, answer a price, cancel) per visitor IP and per hour (it reloads every 30 s).
+    # Private ride page (/b/<token>: view, answer a price, cancel, messages, browser push) per visitor IP and per
+    # hour (it reloads every 30 s).
     max-ride-page-per-hour: 600
+    # Messages a client sends from one ride link, per 10 minutes.
+    max-messages-per-10-min: 20
+  web-push:
+    # Browser push for guests (standard Web Push, free). Make a key pair once with
+    # `java -jar app.jar --taxi.generate-vapid` and keep it (browsers subscribed with one key only accept that key).
+    # Without keys browser push is off; the dev profile makes temporary keys at startup.
+    public-key: ${VAPID_PUBLIC_KEY:}
+    private-key: ${VAPID_PRIVATE_KEY:}
+    # Contact for the push services in case of problems: mailto: or https: address.
+    subject: ${VAPID_SUBJECT:mailto:no-reply@localhost}
   driver:
     # Position updates from the driver's phone: about one per second, small bursts allowed.
     max-location-updates-per-5s: 5

@@ -34,6 +34,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 class DriverController {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DriverController.class);
+
     /** @param extras prices of the ride options, shown before the client picks them */
     record DriverInfo(UUID id, String displayName, String phone, int seats, int luggage, String vehicle,
                       String timezone, String licence, String currency, Extras extras) {}
@@ -57,10 +59,13 @@ class DriverController {
     private final RateLimiter limiter;
     private final Clock clock;
     private final int maxLocationUpdates;
+    private final RideMoments moments;
 
     DriverController(DriverRepository drivers, Pricing pricing, CurrentUser currentUser, DriverTracking tracking,
                      RateLimiter limiter, Clock clock,
-                     @Value("${taxi.driver.max-location-updates-per-5s:5}") int maxLocationUpdates) {
+                     @Value("${taxi.driver.max-location-updates-per-5s:5}") int maxLocationUpdates,
+                     RideMoments moments) {
+        this.moments = moments;
         this.drivers = drivers;
         this.pricing = pricing;
         this.currentUser = currentUser;
@@ -79,7 +84,10 @@ class DriverController {
                 policy.licence().value(), policy.currency(), pricing.extras(d.id()));
     }
 
-    /** The driver's phone sends its position (about once per second at most) while driving. */
+    /**
+     * The driver's phone sends its position (about once per second at most) while driving.
+     * Close to the next pickup, the customer is told the driver is arriving (see {@link RideMoments}).
+     */
     @PostMapping("/api/driver/location")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void location(@RequestBody @Valid LocationBody body) {
@@ -88,6 +96,12 @@ class DriverController {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_REQUESTS");
         }
         tracking.record(driver.id(), body.lat(), body.lng(), body.heading(), body.speed(), body.accuracy());
+        try {
+            moments.onPosition(driver.id(), body.lat(), body.lng());
+        } catch (RuntimeException e) {
+            // The position is saved; a failed "arriving" notice must not make the phone resend it.
+            log.warn("Could not check the arriving moment: {}", e.getClass().getSimpleName());
+        }
     }
 
     @GetMapping("/api/driver/time-off")

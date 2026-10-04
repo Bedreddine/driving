@@ -15,6 +15,17 @@ final class Messages {
     }
 
     private static final Map<String, Text> TEXTS = Map.ofEntries(
+            Map.entry("driver_on_the_way", of("Votre chauffeur est en route", "Your driver is on the way")),
+            Map.entry("driver_arriving", of("Votre chauffeur arrive dans environ 5 minutes",
+                    "Your driver will arrive in about 5 minutes")),
+            Map.entry("driver_arrived", of("Votre chauffeur est arrivé au point de prise en charge",
+                    "Your driver has arrived at the pickup point")),
+            // payload: from ("driver" / "client"), from_name (client's first name), preview (first 80 characters)
+            Map.entry("ride_message", new Text(
+                    p -> ("driver".equals(p.get("from")) ? "Message de votre chauffeur" : "Message de " + name(p, "client"))
+                            + ": " + p.getOrDefault("preview", ""),
+                    p -> ("driver".equals(p.get("from")) ? "Message from your driver" : "Message from " + name(p, "the client"))
+                            + ": " + p.getOrDefault("preview", ""))),
             Map.entry("new_request", of("Nouvelle demande de course", "New ride request")),
             Map.entry("request_received", of("Demande envoyée, le chauffeur va confirmer", "Request sent, the driver will confirm")),
             Map.entry("ride_cancelled_confirmation", of("Votre course a bien été annulée", "Your ride has been cancelled")),
@@ -51,6 +62,11 @@ final class Messages {
 
     static java.util.Set<String> kinds() {
         return TEXTS.keySet();
+    }
+
+    private static String name(Map<String, Object> p, String fallback) {
+        var name = p.get("from_name");
+        return name == null || name.toString().isBlank() ? fallback : name.toString();
     }
 
     private static String suffix(Map<String, Object> p, String sep) {

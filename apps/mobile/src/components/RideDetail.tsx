@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Linking, Platform, Text, View } from 'react-native';
 import * as api from '@/lib/api';
 import type { Ride } from '@/lib/api';
@@ -10,7 +10,11 @@ import { type BusinessInfo, getBusiness } from '@/lib/publicApi';
 import { useNow } from '@/lib/useNow';
 import { phoneDigits } from '@/lib/validate';
 import { whatsappMessage, whatsappUrl } from '@/lib/whatsapp';
+import { chatOpen } from '@/lib/chat';
+import { subscribeRideMessages } from '@/lib/liveUpdates';
+import { ChatPanel } from './ChatPanel';
 import { LiveShare } from './LiveShare';
+import { DriverMoments } from './Moments';
 import { MapScene } from './map/MapScene';
 import { StatusBadge } from './RideCard';
 import { Button, Card, colors, ErrorText, Field, Label, Muted, Row, styles } from './ui';
@@ -39,6 +43,12 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
   const [business, setBusiness] = useState<BusinessInfo | null>(null);
   // A schedule warning the driver may override ("I know a shortcut"): which action to retry.
   const [warning, setWarning] = useState<{ code: string; retry: () => Promise<void> } | null>(null);
+  // After "on the way": suggest sharing the live position if it is not on yet.
+  const [nudgeShare, setNudgeShare] = useState(false);
+  const rideId = ride.id;
+  const loadMessages = useCallback(() => api.getRideMessages(rideId), [rideId]);
+  const sendMessage = useCallback((body: string) => api.sendRideMessage(rideId, body), [rideId]);
+  const onRideMessage = useCallback((reload: () => void) => subscribeRideMessages(rideId, reload), [rideId]);
 
   useEffect(() => {
     if (as === 'driver') void getBusiness().then(setBusiness).catch(() => undefined);
@@ -176,9 +186,23 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
 
       {/* ---------------- Driver actions ---------------- */}
       {as === 'driver' && ride.status === 'accepted' ? (
+        <DriverMoments ride={ride} onChanged={onChanged} onSent={(kind) => kind === 'on_the_way' && setNudgeShare(true)} />
+      ) : null}
+      {as === 'driver' && ride.status === 'accepted' ? (
         <Card>
-          <LiveShare />
+          <LiveShare nudge={nudgeShare} />
         </Card>
+      ) : null}
+      {as === 'driver' ? (
+        <ChatPanel
+          key={ride.id}
+          me="driver"
+          load={loadMessages}
+          send={sendMessage}
+          subscribe={onRideMessage}
+          open={chatOpen(ride.status, ride.pickup_at, now)}
+          quickReplies={[t('qrDriverOnTheWay'), t('qrDriverEntrance'), t('qrDriverParked'), t('qrDriverWaiting')]}
+        />
       ) : null}
 
       {as === 'driver' && ride.status === 'requested' && mode === 'none' ? (

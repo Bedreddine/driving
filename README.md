@@ -87,14 +87,21 @@ All JSON is snake_case. Errors come back as `{"error": "CODE"}` (e.g. `SLOT_TAKE
 | `GET /api/public/business`, `/api/public/driver` | Public: brand, contact, vehicle capacity |
 | `POST /api/public/bookings` | Public: guest price check (`dry_run`, no details needed) or booking (with `client`) |
 | `GET /api/public/bookings/{token}`, `POST …/respond`, `POST …/cancel` | Public: the guest's private link |
+| `GET/POST /api/public/bookings/{token}/messages` | Public: the client's messages with the driver (`{"body"}`, 1–500 chars; open while requested / price_proposed / accepted until 12 h after pickup, else `MESSAGES_CLOSED`; 20 per 10 min per link) |
+| `GET /api/public/web-push/key`, `POST/DELETE /api/public/bookings/{token}/web-push` | Public: browser push for guests (server key, register / remove the browser's subscription) |
 | `POST /api/rides` | Book, quick-add (driver) or price check (`dry_run`) |
 | `GET /api/rides`, `/api/rides/{id}`, `/api/rides/conflicts` | Rides visible to the caller |
 | `POST /api/rides/{id}/accept`, `propose-price`, `decline`, `respond`, `cancel`, `complete`, `no-show` | Status changes |
+| `POST /api/rides/{id}/moments` | Driver: `{"kind":"on_the_way"}` or `"arrived"` on an accepted ride (`"arriving"` is automatic from the live position, ≤ 2.5 km from pickup); the customer is told |
+| `GET/POST /api/rides/{id}/messages` | Messages of a ride: the driver (or admin) writes as `driver`, the signed-in customer as `client` |
+| `POST /api/driver/location` | Driver's live position (shown to the customer around their ride) |
 | `GET /api/drivers/current`, `/api/driver/time-off` | Driver info, time off |
 | `/api/contacts`, `/api/admin/contact-links` | Customers, linking accounts |
 | `/api/admin/pricing/{driverId}`, `/api/admin/zones`, `/api/admin/working-hours`, `/api/admin/business` | Back office |
 | `POST /api/push-tokens`, `GET /api/notifications` | Notifications |
-| `ws://…/ws?token=ACCESS_TOKEN` | Live updates: `{"type":"rides-changed"}` |
+| `ws://…/ws?token=ACCESS_TOKEN` | Live updates: `{"type":"rides-changed"}`, `{"type":"ride-message","ride_id":"…"}` |
+
+Browser push (guests) needs a VAPID key pair: run `java -jar backend/app/build/libs/app-0.1.0.jar --taxi.generate-vapid` once (no database needed) and set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` contact, default `mailto:no-reply@localhost`). Without keys browser push is off; the dev profile makes temporary keys at startup.
 
 ## Set up your own business
 

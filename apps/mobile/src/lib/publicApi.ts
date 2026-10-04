@@ -1,6 +1,8 @@
 // The public booking website (business-card QR code): no account needed.
 import type { BookingInput, BookingResult, DriverInfo, RideStatus } from './api';
+import type { ChatMessage } from './chat';
 import { api } from './http';
+import type { Moment } from './moments';
 import type { GuestReview } from './reviews';
 
 export type BusinessInfo = {
@@ -85,6 +87,8 @@ export type PublicRide = {
   route: [number, number][] | null;
   can_review: boolean;
   review: GuestReview | null;
+  /** The driver's live moments: on the way, arriving (automatic), arrived. */
+  moments?: Moment[];
 };
 
 export const getBusiness = () => api.get<BusinessInfo>('/api/public/business');
@@ -121,3 +125,15 @@ export type DriverPosition = {
 };
 export const getDriverPosition = (token: string) =>
   api.get<DriverPosition | undefined>(`/api/public/bookings/${encodeURIComponent(token)}/driver`);
+
+const ridePath = (token: string) => `/api/public/bookings/${encodeURIComponent(token)}`;
+
+/** Messages with the driver about this ride, oldest first. */
+export const getGuestMessages = (token: string) => api.get<ChatMessage[]>(`${ridePath(token)}/messages`);
+export const sendGuestMessage = (token: string, body: string) => api.post<ChatMessage>(`${ridePath(token)}/messages`, { body });
+
+/** Browser notifications: the server's VAPID public key, null when the feature is off. */
+export const getWebPushKey = () => api.get<{ public_key: string | null }>('/api/public/web-push/key');
+export type WebPushSubscription = { endpoint: string; keys: { p256dh: string; auth: string } };
+export const addWebPush = (token: string, sub: WebPushSubscription) => api.post<void>(`${ridePath(token)}/web-push`, sub);
+export const removeWebPush = (token: string, endpoint: string) => api.del<void>(`${ridePath(token)}/web-push`, { endpoint });

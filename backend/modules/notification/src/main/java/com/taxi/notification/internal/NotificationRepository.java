@@ -82,6 +82,14 @@ class NotificationRepository {
         }
     }
 
+    /** Notices quoting a ride's messages (personal data). */
+    void deleteMessageNotices(List<UUID> rideIds) {
+        if (!rideIds.isEmpty()) {
+            jdbc.sql("delete from notifications where kind = 'ride_message' and ride_id in (:ids)")
+                    .param("ids", rideIds).update();
+        }
+    }
+
     int deleteOlderThan90Days() {
         return jdbc.sql("delete from notifications where created_at < now() - interval '90 days'").update();
     }

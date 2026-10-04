@@ -13,8 +13,9 @@ type Mode = 'off' | 'background' | 'foreground';
  * The driver shares their live position for a confirmed ride: the client sees the car approach on their page.
  * Phones keep sharing with the screen locked when "always" location is allowed; otherwise (and on the website)
  * only while this screen is open. The server shows it only around the ride's time.
+ * `nudge`: the driver just said "on the way": suggest sharing if it is off.
  */
-export function LiveShare() {
+export function LiveShare({ nudge = false }: { nudge?: boolean } = {}) {
   const { t, err } = useAuth();
   const [mode, setMode] = useState<Mode>('off');
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +70,7 @@ export function LiveShare() {
           <Body style={{ flex: 1 }}>{t('sharingLocation')}</Body>
         </Row>
       ) : null}
+      {nudge && !on ? <Notice tone="warning">{t('shareNudge')}</Notice> : null}
       <Button kind={on ? 'secondary' : 'primary'} title={on ? t('stopSharing') : t('shareLocation')} onPress={() => void toggle()} />
       <Muted>{mode === 'background' ? t('shareHelpBackground') : t('shareHelp')}</Muted>
       {mode === 'foreground' && backgroundSupported ? <Notice tone="info">{t('shareAlwaysHint')}</Notice> : null}
