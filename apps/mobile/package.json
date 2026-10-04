@@ -1,7 +1,7 @@
 {
   "name": "taxi-app",
   "version": "1.0.0",
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "dependencies": {
     "@expo-google-fonts/instrument-serif": "^0.4.1",
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",

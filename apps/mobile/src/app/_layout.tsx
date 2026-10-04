@@ -14,8 +14,6 @@ import { useEffect } from 'react';
 import { colors } from '@/components/ui';
 import { NotificationTap } from '@/components/NotificationTap';
 import { AuthProvider, useAuth } from '@/lib/auth';
-// Registers the background location task when the app starts (also when woken up for a position).
-import '@/lib/driverTracking';
 import { registerForPush } from '@/lib/push';
 import { installErrorHandling } from '@/lib/errors';
 import { ErrorScreen } from '@/components/ErrorScreen';

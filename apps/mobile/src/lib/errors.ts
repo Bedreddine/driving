@@ -47,7 +47,9 @@ export function installErrorHandling() {
     .then(({ LogManager }) => {
       LogManager.setLogLevel(__DEV__ ? 'warn' : 'error');
       LogManager.onLog(({ level, tag, message }) => {
-        if (level === 'error' || level === 'warn') console.log(`[map ${level}] ${tag}: ${message}`);
+        // Tile downloads cancelled when a map closes are normal: not worth a line.
+        const cancelled = tag === 'Mbgl-HttpRequest' && message.includes('Canceled');
+        if ((level === 'error' || level === 'warn') && !cancelled) console.log(`[map ${level}] ${tag}: ${message}`);
         return true;
       });
     })
