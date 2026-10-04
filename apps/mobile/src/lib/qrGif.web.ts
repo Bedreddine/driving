@@ -1,13 +1,12 @@
 // Website only: the animated business card as a looping GIF (to send on WhatsApp, post, or show on a tablet).
 import { applyPalette, GIFEncoder, quantize } from 'gifenc';
 import type { QrCardContent } from '@/components/AnimatedQrCard';
-import { lineProgress, qrLines } from './qrLines';
+import { AMBER, buildQrReveal, FINDER_OUTLINE_LENGTH, finderOutlinePath, IVORY, QR_REVEAL_MS, QUIET, revealFrame } from './qrReveal';
 import { fonts, night } from './theme';
 
 const W = 600;
-const IVORY = '#EEE9E0';
-const QUIET = 3;
-const FRAMES = 30;
+const DELAY = 60; // ms per frame
+const FRAMES = Math.round(QR_REVEAL_MS / DELAY);
 
 function loadImage(url: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
@@ -19,9 +18,11 @@ function loadImage(url: string): Promise<HTMLImageElement | null> {
   });
 }
 
-/** Builds the GIF: the QR code draws itself line by line, then the finished card holds for 3 seconds, and loops. */
+/** Builds the GIF: the same reveal as the live card (qrReveal), then the finished card holds for 3 seconds, and loops. */
 export async function exportQrGif(content: QrCardContent): Promise<Blob> {
-  const { size, lines } = qrLines(content.url);
+  const { size, finders, rings } = buildQrReveal(content.url);
+  const ringPaths = rings.map((r) => new Path2D(r.d));
+  const finderPaths = finders.map(({ x, y }) => new Path2D(finderOutlinePath(x, y)));
   const photo = content.photoUrl ? await loadImage(content.photoUrl) : null;
   const pad = 52;
   const cover = photo ? Math.round(W * 0.46) : 0;
@@ -57,19 +58,39 @@ export async function exportQrGif(content: QrCardContent): Promise<Blob> {
     ctx.fillStyle = IVORY;
     ctx.fillRect(pad, qrTop, qrSide, qrSide);
     const unit = qrSide / (size + QUIET * 2);
-    ctx.fillStyle = night.paper;
-    for (const l of lines) {
-      const p = lineProgress(l.row, size, t);
-      if (p <= 0) continue;
-      const x = l.x - (1 - p) * (l.x + l.length + QUIET);
-      const left = Math.max(pad, pad + (x + QUIET) * unit);
-      const right = pad + (x + QUIET + l.length) * unit;
-      if (right > left) ctx.fillRect(left, qrTop + (l.row + QUIET) * unit, right - left + 0.5, unit + 0.5);
-    }
-    if (t < 1) {
-      ctx.fillStyle = night.primary;
-      ctx.globalAlpha = 1 - t * 0.6;
-      ctx.fillRect(pad, qrTop + (QUIET + t * size) * unit - 3, qrSide, 6);
+    const f = revealFrame(t, rings.length);
+    const mid = size / 2;
+    ctx.save();
+    ctx.translate(pad + QUIET * unit, qrTop + QUIET * unit);
+    ctx.scale(unit, unit);
+    rings.forEach((_, i) => {
+      const r = f.rings[i];
+      if (r.opacity <= 0) return;
+      const shift = mid * (1 - r.scale);
+      ctx.save();
+      ctx.globalAlpha = r.opacity;
+      ctx.fillStyle = r.color;
+      ctx.transform(r.scale, 0, 0, r.scale, shift, shift);
+      ctx.fill(ringPaths[i]);
+      ctx.restore();
+    });
+    ctx.strokeStyle = f.finderColor;
+    ctx.fillStyle = f.finderColor;
+    ctx.lineWidth = 1;
+    ctx.lineCap = 'square';
+    ctx.setLineDash(f.finderOutline < 1 ? [f.finderOutline * FINDER_OUTLINE_LENGTH, FINDER_OUTLINE_LENGTH] : []);
+    finders.forEach(({ x, y }, i) => {
+      if (f.finderOutline > 0) ctx.stroke(finderPaths[i]);
+      const c = 3 * f.finderCentre;
+      if (c > 0) ctx.fillRect(x + 3.5 - c / 2, y + 3.5 - c / 2, c, c);
+    });
+    ctx.setLineDash([]);
+    ctx.restore();
+    if (f.flash > 0) {
+      ctx.globalAlpha = f.flash;
+      ctx.strokeStyle = AMBER;
+      ctx.lineWidth = 4;
+      ctx.strokeRect(pad + 2, qrTop + 2, qrSide - 4, qrSide - 4);
       ctx.globalAlpha = 1;
     }
 
@@ -96,7 +117,7 @@ export async function exportQrGif(content: QrCardContent): Promise<Blob> {
     draw(t);
     const { data } = ctx.getImageData(0, 0, W, H);
     const palette = quantize(data, 128);
-    gif.writeFrame(applyPalette(data, palette), W, H, { palette, delay: i === FRAMES ? 3000 : 60, repeat: 0 });
+    gif.writeFrame(applyPalette(data, palette), W, H, { palette, delay: i === FRAMES ? 3000 : DELAY, repeat: 0 });
   }
   gif.finish();
   return new Blob([gif.bytes() as BlobPart], { type: 'image/gif' });

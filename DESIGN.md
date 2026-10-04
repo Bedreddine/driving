@@ -179,3 +179,5 @@ Soft, never bubbly:
 | 2026-10-02 | Car profile with photos, animated QR card (lines slide in, amber scan line, ends as a still, scannable QR on ivory) | Owner request; the card stays scannable at rest |
 | 2026-10-02 | Map as an input: tap to place, drag pins, numbered search results, "my location" that follows the phone; driver's live car on the ride page | Owner request |
 | 2026-10-04 | Rounder shapes (controls 14px, cards 20px, sheet 28px, pill chips) and an animated amber focus halo on fields | Owner asked for rounded buttons and inputs and a livelier focus |
+| 2026-10-04 | QR card animation "the city lights up": the three finder squares draw in amber, modules light up from the centre outward and cool from amber to asphalt, one soft amber flash, then a still scannable QR (2.2s) | Owner asked for a better QR animation; the old line wipe read as a printer |
+| 2026-10-04 | Tappable rows look tappable: saved rides as rows with a chevron, ride cards with a chevron and a lit edge on press, Sign in in amber | Owner: some clickable areas did not look clickable |
