@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { apiUrl } from '@/lib/http';
 import type { TextKey } from '@/lib/i18n';
 import type { Vehicle, VehiclePhoto } from '@/lib/publicApi';
-import { fonts, night } from '@/lib/theme';
+import { fonts, night, radius } from '@/lib/theme';
 import { Button, Icon } from './controls';
 import { Tabs } from './scene';
 
@@ -35,16 +35,16 @@ export function VehicleCard({ vehicle, fallback }: { vehicle: Vehicle; fallback?
           gap: 12,
           alignItems: 'center',
           padding: 10,
-          borderRadius: 3,
+          borderRadius: radius.control,
           borderWidth: 1,
           borderColor: night.rule,
           backgroundColor: pressed ? night.raised : night.paper,
         })}
       >
         {cover ? (
-          <Image source={{ uri: photoSrc(cover) }} accessibilityIgnoresInvertColors style={{ width: 92, height: 62, borderRadius: 3 }} resizeMode="cover" />
+          <Image source={{ uri: photoSrc(cover) }} accessibilityIgnoresInvertColors style={{ width: 92, height: 62, borderRadius: radius.control }} resizeMode="cover" />
         ) : (
-          <View style={{ width: 44, height: 44, borderRadius: 3, borderWidth: 1, borderColor: night.rule, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 44, height: 44, borderRadius: radius.sm, borderWidth: 1, borderColor: night.rule, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="truck" size={18} color={night.primary} />
           </View>
         )}
@@ -90,7 +90,7 @@ export function VehicleGallery({ vehicle, visible, onClose }: { vehicle: Vehicle
               <Image
                 source={{ uri: photoSrc(p) }}
                 accessibilityLabel={p.caption ?? vehicle.model ?? ''}
-                style={{ width: frame - 40, height: Math.min(height * 0.5, (frame - 40) * 0.66), borderRadius: 3, backgroundColor: night.surface }}
+                style={{ width: frame - 40, height: Math.min(height * 0.5, (frame - 40) * 0.66), borderRadius: radius.control, backgroundColor: night.surface }}
                 resizeMode="cover"
               />
               {p.caption ? <Text style={{ fontFamily: fonts.body, fontSize: 14, color: night.muted, marginTop: 8 }}>{p.caption}</Text> : null}
@@ -103,7 +103,7 @@ export function VehicleGallery({ vehicle, visible, onClose }: { vehicle: Vehicle
           {vehicle.features.length ? (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {vehicle.features.map((f) => (
-                <View key={f} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 3, borderWidth: 1, borderColor: night.rule }}>
+                <View key={f} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10, borderRadius: radius.pill, borderWidth: 1, borderColor: night.rule }}>
                   <Icon name="check" size={14} color={night.primary} />
                   <Text style={{ fontFamily: fonts.medium, fontSize: 13.5, color: night.text }}>{f}</Text>
                 </View>

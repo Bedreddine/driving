@@ -4,7 +4,7 @@ import { Image, Text, View } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 import { useReducedMotion } from '@/lib/motion';
 import { lineProgress, QR_ANIMATION_MS, qrLines } from '@/lib/qrLines';
-import { fonts, night } from '@/lib/theme';
+import { fonts, night, radius } from '@/lib/theme';
 
 export type QrCardContent = {
   url: string;
@@ -50,7 +50,7 @@ export function AnimatedQrCard({ content, width = 320, play = 0 }: { content: Qr
   const view = size + QUIET * 2;
 
   return (
-    <View style={{ width, backgroundColor: night.paper, borderRadius: 14, borderWidth: 1, borderColor: night.rule, overflow: 'hidden' }}>
+    <View style={{ width, backgroundColor: night.paper, borderRadius: radius.card, borderWidth: 1, borderColor: night.rule, overflow: 'hidden' }}>
       {content.photoUrl ? (
         <View style={{ height: coverHeight }}>
           <Image source={{ uri: content.photoUrl }} accessibilityIgnoresInvertColors style={{ width: '100%', height: '100%' }} resizeMode="cover" />
@@ -60,7 +60,7 @@ export function AnimatedQrCard({ content, width = 320, play = 0 }: { content: Qr
       <View style={{ paddingHorizontal: 28, paddingTop: content.photoUrl ? 0 : 26, marginTop: content.photoUrl ? -30 : 0 }}>
         <Text style={{ fontFamily: fonts.display, fontSize: 30, lineHeight: 34, color: night.text }}>{content.brand}</Text>
       </View>
-      <View style={{ margin: 28, marginTop: 16, marginBottom: 18, width: qrSide, height: qrSide, backgroundColor: IVORY, borderRadius: 3 }}>
+      <View style={{ margin: 28, marginTop: 16, marginBottom: 18, width: qrSide, height: qrSide, backgroundColor: IVORY, borderRadius: radius.control }}>
         <Svg width={qrSide} height={qrSide} viewBox={`${-QUIET} ${-QUIET} ${view} ${view}`} accessibilityLabel={content.url}>
           {lines.map((l, i) => {
             const p = lineProgress(l.row, size, shown);

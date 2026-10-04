@@ -22,6 +22,8 @@ export function MapScene(props: MapSceneProps) {
 function MapView(props: MapSceneProps) {
   const { pickup, dropoff, route, mode, focus, padding, onPress, onCenterChange, onPickupMove, onDropoffMove, candidates, onCandidatePress, car, you, style } = props;
   const [styleJson, setStyleJson] = useState<StyleJson | null>(null);
+  // The camera ignores moves until the native map has loaded: frame the route only after that.
+  const [ready, setReady] = useState(false);
   const camera = useRef<CameraRef>(null);
   const reduced = useReducedMotion();
   const drawn = useRouteProgress(route);
@@ -42,7 +44,7 @@ function MapView(props: MapSceneProps) {
   const target = JSON.stringify([mode, focus, pickup, dropoff, route?.length, candidateKey, !!car]);
   useEffect(() => {
     const cam = camera.current;
-    if (!styleJson || !cam) return;
+    if (!styleJson || !cam || !ready) return;
     const p = JSON.parse(pad);
     if (mode === 'orbit') {
       let bearing = -20;
@@ -60,9 +62,10 @@ function MapView(props: MapSceneProps) {
       return;
     }
     if (pts.length === 1) cam.easeTo({ center: pts[0], zoom: 14.5, pitch: 40, bearing: 0, padding: p, duration: reduced ? 0 : 1000 });
-    else if (pts.length > 1) cam.fitBounds(boundsOf(pts), { padding: p, pitch: 40, bearing: 0, duration: reduced ? 0 : 1200 });
+    else if (pts.length > 1) // Flat: the native map fits the bounds before tilting, so a tilted fit leaves the route off-centre.
+      cam.fitBounds(boundsOf(pts), { padding: p, pitch: 0, bearing: 0, duration: reduced ? 0 : 1200 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target, pad, styleJson, reduced]);
+  }, [target, pad, styleJson, reduced, ready]);
 
   if (!styleJson) return <View style={[{ backgroundColor: mapColors.land }, style]} />;
   return (
@@ -75,6 +78,7 @@ function MapView(props: MapSceneProps) {
         compass={false}
         onPress={(e) => onPress?.(e.nativeEvent.lngLat)}
         onRegionDidChange={(e) => mode === 'pick' && onCenterChange?.(e.nativeEvent.center)}
+        onDidFinishLoadingMap={() => setReady(true)}
       >
         <Camera ref={camera} initialViewState={{ center: focus ?? PARIS, zoom: 14.2, pitch: 55, bearing: -20 }} />
         {/* The native map refuses a line with fewer than two points: no source at all until a route exists. */}

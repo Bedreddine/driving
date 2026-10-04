@@ -53,6 +53,20 @@ export const fonts = {
 };
 
 /** Tabular figures, so prices and times do not jump while they change. */
+/** Corner radii (DESIGN.md › Shapes): soft, never bubbly. */
+export const radius = {
+  /** small boxes: icon tiles, step numbers */
+  sm: 8,
+  /** buttons, fields, rows, photos */
+  control: 14,
+  /** cards, sections, framed maps */
+  card: 20,
+  /** booking sheet top corners */
+  sheet: 28,
+  /** chips, badges, toggles: pills */
+  pill: 999,
+} as const;
+
 export const tabular = { fontVariant: ['tabular-nums' as const] };
 
 export const ThemeContext = createContext<Palette>(night);

@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { choiceColors, Icon, Touchable, type IconName } from './controls';
-import { fonts, night, tabular, useTheme } from '@/lib/theme';
+import { fonts, night, tabular, useTheme, radius } from '@/lib/theme';
 
 /** The night palette under the names the driver and back-office screens use (DESIGN.md › Colors). */
 export const colors = {
@@ -104,7 +104,7 @@ export function CardTitle({ icon, children, help, right }: { icon?: IconName; ch
     <View style={{ gap: 4, marginBottom: 6 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         {icon ? (
-          <View style={{ width: 32, height: 32, borderRadius: 3, borderWidth: 1, borderColor: theme.rule, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 32, height: 32, borderRadius: radius.sm, borderWidth: 1, borderColor: theme.rule, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name={icon} size={16} color={theme.primary} />
           </View>
         ) : null}
@@ -192,9 +192,9 @@ export const styles = StyleSheet.create({
   text: { fontFamily: fonts.body, fontSize: 16, lineHeight: 24, color: colors.text },
   mono: { fontFamily: fonts.mono, ...tabular },
   muted: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.muted },
-  card: { backgroundColor: colors.card, borderRadius: 3, padding: 16, borderWidth: 1, borderColor: colors.border, gap: 6 },
+  card: { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, borderWidth: 1, borderColor: colors.border, gap: 6 },
   row: { flexDirection: 'row', alignItems: 'center' },
-  button: { paddingVertical: 16, paddingHorizontal: 18, borderRadius: 3, alignItems: 'center', justifyContent: 'center', minHeight: 50 },
+  button: { paddingVertical: 16, paddingHorizontal: 18, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center', minHeight: 50 },
   buttonText: { fontFamily: fonts.bold, fontSize: 16, letterSpacing: 0.2 },
   field: { marginVertical: 6 },
   input: {
@@ -206,10 +206,10 @@ export const styles = StyleSheet.create({
     color: colors.text,
     ...(Platform.OS === 'web' ? { outlineStyle: 'none' as never } : {}),
   },
-  stepBtn: { width: 38, height: 38, borderRadius: 3, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },
+  stepBtn: { width: 38, height: 38, borderRadius: radius.control, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },
   stepText: { fontSize: 20, color: colors.primary, fontFamily: fonts.medium },
   segmented: { gap: 8, flexWrap: 'wrap' },
-  segment: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 46, paddingHorizontal: 16, borderRadius: 3, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card },
+  segment: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 46, paddingHorizontal: 16, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card },
   error: { fontFamily: fonts.body, color: colors.danger, fontSize: 15, lineHeight: 21 },
-  notice: { borderWidth: 1, padding: 12, borderRadius: 3 },
+  notice: { borderWidth: 1, padding: 12, borderRadius: radius.control },
 });

@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDateTime, formatPrice } from '@/lib/format';
 import type { TextKey } from '@/lib/i18n';
 import { Card, colors, Row, styles } from './ui';
-import { fonts } from '@/lib/theme';
+import { fonts, radius } from '@/lib/theme';
 
 const statusColor: Record<RideStatus, string> = {
   requested: colors.warning,
@@ -21,7 +21,7 @@ const statusColor: Record<RideStatus, string> = {
 export function StatusBadge({ status }: { status: RideStatus }) {
   const { t } = useAuth();
   return (
-    <View style={{ backgroundColor: statusColor[status], borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 }}>
+    <View style={{ backgroundColor: statusColor[status], borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 3 }}>
       <Text style={{ color: colors.primaryText, fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', fontFamily: fonts.semibold }}>
         {t(`status_${status}` as TextKey)}
       </Text>

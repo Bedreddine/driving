@@ -11,6 +11,7 @@ import { AMENITY_IDEAS } from '@/lib/amenities';
 import { useAuth } from '@/lib/auth';
 import { api, apiUrl } from '@/lib/http';
 import { type Amenity, type BusinessInfo, getBusiness, siteUrl } from '@/lib/publicApi';
+import { radius } from '@/lib/theme';
 
 const QR_OPTIONS = { errorCorrectionLevel: 'M' as const, margin: 2, color: { dark: '#0D0F12', light: '#EEE9E0' } };
 const MAX_AMENITIES = 20;
@@ -241,7 +242,7 @@ export default function AdminBusiness() {
         {saved && bookingUrl ? <QrCardPanel business={saved} url={bookingUrl} /> : null}
         <Card style={{ alignItems: 'center' }}>
           <CardTitle icon="grid">{t('qrCode')}</CardTitle>
-          <View style={{ backgroundColor: '#0D0F12', borderWidth: 1, borderColor: '#3A3F48', padding: 16, borderRadius: 3, alignItems: 'center', gap: 8 }}>
+          <View style={{ backgroundColor: '#0D0F12', borderWidth: 1, borderColor: '#3A3F48', padding: 16, borderRadius: radius.card, alignItems: 'center', gap: 8 }}>
             <Text style={{ fontFamily: fonts.display, color: '#EEE9E0', fontSize: 22 }}>{saved?.name}</Text>
             {qr ? <Image source={{ uri: qr }} style={{ width: 240, height: 240 }} accessibilityLabel={bookingUrl ?? ''} /> : null}
           </View>

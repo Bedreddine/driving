@@ -1,9 +1,10 @@
 import { Redirect, Slot, usePathname, useRouter } from 'expo-router';
 import { Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, Icon, type IconName } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import type { TextKey } from '@/lib/i18n';
-import { night } from '@/lib/theme';
+import { night, radius } from '@/lib/theme';
 
 type Href = '/admin' | '/admin/contacts' | '/admin/reviews' | '/admin/pricing' | '/admin/hours' | '/admin/business' | '/driver';
 
@@ -33,7 +34,7 @@ function MenuItem({ label, icon, active, compact, onPress }: { label: string; ic
             gap: 12,
             paddingVertical: compact ? 8 : 10,
             paddingHorizontal: 12,
-            borderRadius: 3,
+            borderRadius: radius.control,
             backgroundColor: active ? night.raised : pressed || hovered ? night.paper : 'transparent',
             borderWidth: 1,
             borderColor: active ? night.rule : 'transparent',
@@ -55,6 +56,8 @@ export default function AdminLayout() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const wide = width >= 900;
+  // Phones: keep the menu clear of the status bar and the notch.
+  const insets = useSafeAreaInsets();
 
   if (!loading && !signedIn) return <Redirect href="/sign-in" />;
   if (!loading && roles.length > 0 && !roles.includes('admin')) return <Redirect href="/" />;
@@ -74,14 +77,14 @@ export default function AdminLayout() {
   return (
     <View style={{ flex: 1, flexDirection: wide ? 'row' : 'column', backgroundColor: colors.bg }}>
       {wide ? (
-        <View style={{ width: 236, backgroundColor: night.surface, borderRightWidth: 1, borderRightColor: night.rule, padding: 16, gap: 4 }}>
+        <View style={{ width: 236, backgroundColor: night.surface, borderRightWidth: 1, borderRightColor: night.rule, padding: 16, paddingTop: 16 + insets.top, gap: 4 }}>
           <Text style={{ color: night.text, fontFamily: fonts.display, fontSize: 26, marginBottom: 18, paddingHorizontal: 4 }}>{t('backOffice')}</Text>
           {items}
           <View style={{ flex: 1 }} />
           <View style={{ borderTopWidth: 1, borderTopColor: night.rule, paddingTop: 10 }}>{out}</View>
         </View>
       ) : (
-        <View style={{ backgroundColor: night.surface, borderBottomWidth: 1, borderBottomColor: night.rule }}>
+        <View style={{ backgroundColor: night.surface, borderBottomWidth: 1, borderBottomColor: night.rule, paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 10, gap: 6, alignItems: 'center' }}>
             <Text style={{ color: night.text, fontFamily: fonts.display, fontSize: 20, marginRight: 8 }}>{t('backOffice')}</Text>
             {items}

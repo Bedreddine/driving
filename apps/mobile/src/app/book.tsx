@@ -26,7 +26,7 @@ import { shortName, SUGGESTED_PLACES, type PlaceKind } from '@/lib/places';
 import { priceLines } from '@/lib/priceLines';
 import { type BusinessInfo, getBusiness, getPublicDriver, guestBook, guestQuote } from '@/lib/publicApi';
 import { getPublicReviews, type PublicReview } from '@/lib/reviews';
-import { fonts, night } from '@/lib/theme';
+import { fonts, night, radius } from '@/lib/theme';
 import { useDocumentTitle } from '@/lib/useDocumentTitle';
 import { useNow } from '@/lib/useNow';
 import { isEmail, isPhone } from '@/lib/validate';
@@ -533,9 +533,9 @@ export default function Experience() {
               borderBottomWidth: wide ? 1 : 0,
               borderLeftWidth: wide ? 1 : 0,
               borderRightWidth: wide ? 1 : 0,
-              borderRadius: wide ? 14 : 0,
-              borderTopLeftRadius: 14,
-              borderTopRightRadius: 14,
+              borderRadius: wide ? radius.card : 0,
+              borderTopLeftRadius: wide ? radius.card : radius.sheet,
+              borderTopRightRadius: wide ? radius.card : radius.sheet,
               overflow: 'hidden',
             }}
           >
@@ -632,7 +632,7 @@ export default function Experience() {
                     <Section n={4} title={t('step_details')}>
                       {profile && !editDetails ? (
                         <View style={{ gap: 10 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 3, borderWidth: 1.5, borderColor: night.edge, backgroundColor: night.control }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radius.control, borderWidth: 1.5, borderColor: night.edge, backgroundColor: night.control }}>
                             <Icon name="user-check" size={22} color={night.primary} />
                             <View style={{ flex: 1 }}>
                               <Text style={{ fontFamily: fonts.semibold, fontSize: 16.5, color: night.text }}>{name}</Text>

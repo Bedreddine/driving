@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Animated, Text, View, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { durations, ease, nativeDriver, useReducedMotion } from '@/lib/motion';
-import { fonts, tabular, useTheme } from '@/lib/theme';
+import { fonts, tabular, useTheme, radius } from '@/lib/theme';
 import { choiceColors, Icon, Touchable, type IconName } from './controls';
 
 /** Content arriving on screen: fades in while rising 12px, one block after the other (`index`). */
@@ -85,7 +85,7 @@ export function PlaceRow({ title, detail, distance, icon, onPress }: { title: st
         paddingVertical: 10,
         paddingHorizontal: 10,
         marginHorizontal: -10,
-        borderRadius: 3,
+        borderRadius: radius.control,
         borderBottomWidth: 1,
         borderBottomColor: theme.rule,
         backgroundColor: pressed ? theme.controlHover : hovered ? theme.control : 'transparent',
@@ -94,7 +94,7 @@ export function PlaceRow({ title, detail, distance, icon, onPress }: { title: st
       {({ pressed, hovered }) => (
         <>
           {icon ? (
-            <View style={{ width: 40, height: 40, borderRadius: 3, borderWidth: 1.5, borderColor: pressed || hovered ? theme.primary : theme.edge, backgroundColor: theme.control, alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: 40, height: 40, borderRadius: radius.sm, borderWidth: 1.5, borderColor: pressed || hovered ? theme.primary : theme.edge, backgroundColor: theme.control, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name={icon} size={19} color={pressed || hovered ? theme.primary : theme.text} />
             </View>
           ) : null}
@@ -123,7 +123,7 @@ export function Chip({ label, selected, onPress }: { label: string; selected?: b
       pressScale={0.95}
       style={({ pressed, hovered }) => {
         const c = choiceColors(theme, !!selected, pressed || hovered);
-        return { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 46, paddingHorizontal: 14, borderRadius: 3, borderWidth: 1.5, borderColor: c.borderColor, backgroundColor: c.backgroundColor };
+        return { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 46, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: c.borderColor, backgroundColor: c.backgroundColor };
       }}
     >
       {selected ? <Icon name="check" size={16} color={theme.primary} /> : null}
@@ -262,7 +262,7 @@ export function StarRating({ value, onChange, label }: { value: number; onChange
             style={({ hovered }) => ({
               width: 52,
               height: 52,
-              borderRadius: 3,
+              borderRadius: radius.control,
               borderWidth: 1.5,
               alignItems: 'center',
               justifyContent: 'center',
@@ -293,9 +293,9 @@ export function Stars({ value }: { value: number }) {
 export function Section({ n, title, children, right }: { n: number; title: string; children: ReactNode; right?: ReactNode }) {
   const theme = useTheme();
   return (
-    <View style={{ backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.rule, borderRadius: 3, padding: 14, gap: 10 }}>
+    <View style={{ backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.rule, borderRadius: radius.card, padding: 14, gap: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <View style={{ width: 22, height: 22, borderRadius: 3, borderWidth: 1, borderColor: theme.primary, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 22, height: 22, borderRadius: radius.sm, borderWidth: 1, borderColor: theme.primary, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontFamily: fonts.monoMedium, fontSize: 12, color: theme.primary }}>{n}</Text>
         </View>
         <Text accessibilityRole="header" style={{ flex: 1, fontFamily: fonts.bold, fontSize: 15, letterSpacing: 0.2, color: theme.text }}>

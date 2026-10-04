@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/http';
 import type { TextKey } from '@/lib/i18n';
 import type { Vehicle, VehicleCategory, VehiclePhoto } from '@/lib/publicApi';
-import { fonts, night } from '@/lib/theme';
+import { fonts, night, radius } from '@/lib/theme';
 import { Chip } from './scene';
 import { Button, Card, CardTitle, ErrorText, Field, Icon, Label, Muted, Row, Segmented } from './ui';
 import { photoSrc } from './Vehicle';
@@ -119,7 +119,7 @@ export function VehicleEditor({ vehicle, onChange, onPhotosChanged }: { vehicle:
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
         {vehicle.photos.map((p, i) => (
           <View key={p.id} style={{ width: 200, gap: 6, opacity: busy === p.id ? 0.5 : 1 }}>
-            <Image source={{ uri: photoSrc(p) }} accessibilityIgnoresInvertColors style={{ width: 200, height: 133, borderRadius: 3, borderWidth: 1, borderColor: night.rule }} resizeMode="cover" />
+            <Image source={{ uri: photoSrc(p) }} accessibilityIgnoresInvertColors style={{ width: 200, height: 133, borderRadius: radius.control, borderWidth: 1, borderColor: night.rule }} resizeMode="cover" />
             <Row style={{ justifyContent: 'space-between' }}>
               <Pressable accessibilityRole="button" onPress={() => patch(p, { kind: p.kind === 'exterior' ? 'interior' : 'exterior' })}>
                 <Text style={[small, { color: night.primary }]}>{t(p.kind)} ⇄</Text>

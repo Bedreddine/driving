@@ -14,7 +14,7 @@ import { LiveShare } from './LiveShare';
 import { MapScene } from './map/MapScene';
 import { StatusBadge } from './RideCard';
 import { Button, Card, colors, ErrorText, Field, Label, Muted, Row, styles } from './ui';
-import { fonts } from '@/lib/theme';
+import { fonts, radius } from '@/lib/theme';
 
 type Props = { ride: Ride; as: 'customer' | 'driver'; onChanged: () => void; licence?: 'vtc' | 'taxi' };
 
@@ -83,7 +83,7 @@ export function RideDetail({ ride, as, onChanged, licence = 'vtc' }: Props) {
   return (
     <View style={{ gap: 12 }}>
       <MapScene
-        style={{ height: 220, borderRadius: 3, borderWidth: 1, borderColor: colors.border }}
+        style={{ height: 220, borderRadius: radius.card, borderWidth: 1, borderColor: colors.border }}
         mode="trip"
         pickup={[ride.pickup_lng, ride.pickup_lat]}
         dropoff={[ride.dropoff_lng, ride.dropoff_lat]}

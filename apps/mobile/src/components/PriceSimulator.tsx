@@ -11,6 +11,7 @@ import { DateTimeField } from './DateTimeField';
 import { MapScene } from './map/MapScene';
 import { Chip, CountUp, MonoLine, PriceDetail } from './scene';
 import { Button, Card, CardTitle, colors, Notice, Row, Segmented, Stepper, Toggle } from './ui';
+import { radius } from '@/lib/theme';
 
 type Simulation = BookingResult & { estimate: number; currency: string; route: [number, number][] | null };
 
@@ -102,7 +103,7 @@ export function PriceSimulator({
         <View style={{ gap: 10, marginTop: 6 }}>
           {from && to ? (
             <MapScene
-              style={{ height: 240, borderRadius: 3, borderWidth: 1, borderColor: colors.border }}
+              style={{ height: 240, borderRadius: radius.card, borderWidth: 1, borderColor: colors.border }}
               mode="trip"
               pickup={[from.lng, from.lat]}
               dropoff={[to.lng, to.lat]}

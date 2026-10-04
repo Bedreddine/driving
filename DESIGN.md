@@ -48,8 +48,10 @@ typography:
     fontFamily: JetBrains Mono
     fontFeature: tnum
 rounded:
-  sm: 3px
-  sheet: 14px
+  sm: 8px
+  control: 14px
+  card: 20px
+  sheet: 28px
   full: 9999px
 spacing:
   xs: 4px
@@ -62,12 +64,12 @@ components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
-    rounded: "{rounded.sm}"
+    rounded: "{rounded.control}"
   button-secondary:
     backgroundColor: "{colors.surface}"
     borderColor: "{colors.line}"
     textColor: "{colors.text}"
-    rounded: "{rounded.sm}"
+    rounded: "{rounded.control}"
   sheet:
     backgroundColor: "{colors.asphalt}"
     borderColor: "{colors.line}"
@@ -120,13 +122,16 @@ Scale: 46 display / 32 heading / 22 sub-heading / 16 body / 13 secondary / 11 la
 
 ## Elevation & Depth
 
-Tone, not shadow: asphalt surfaces step up in lightness, divided by 1px `line` hairlines. The map gets a 3D tilt (pitch 45-55°) on the landing for depth. No drop shadows, no glows, no frosted glass.
+Tone, not shadow: asphalt surfaces step up in lightness, divided by 1px `line` hairlines. The map gets a 3D tilt (pitch 45-55°) on the landing for depth. No drop shadows and no frosted glass. The one halo: a focused field gets a soft amber ring (3px, 28% opacity) that opens around it.
 
 ## Shapes
 
-- `sm` 3px for buttons, inputs, chips.
-- `sheet` 14px for the top corners of the booking sheet only.
-- `full` for dots: availability dot, map pins.
+Soft, never bubbly:
+- `sm` 8px for small tiles: icon boxes, step numbers.
+- `control` 14px for buttons, fields, list rows, photos.
+- `card` 20px for cards, numbered sections, framed maps.
+- `sheet` 28px for the top corners of the booking sheet.
+- `full` for choice chips, status badges, the switch, dots and map pins.
 
 ## Components
 
@@ -173,3 +178,4 @@ Tone, not shadow: asphalt surfaces step up in lightness, divided by 1px `line` h
 | 2026-10-02 | Filled text fields with floating labels, Feather line icons (MIT) in buttons, fields and the back-office menu, custom switch and counters, visible amber focus ring | Owner asked for richer buttons and inputs, client pages and back office alike |
 | 2026-10-02 | Car profile with photos, animated QR card (lines slide in, amber scan line, ends as a still, scannable QR on ivory) | Owner request; the card stays scannable at rest |
 | 2026-10-02 | Map as an input: tap to place, drag pins, numbered search results, "my location" that follows the phone; driver's live car on the ride page | Owner request |
+| 2026-10-04 | Rounder shapes (controls 14px, cards 20px, sheet 28px, pill chips) and an animated amber focus halo on fields | Owner asked for rounded buttons and inputs and a livelier focus |

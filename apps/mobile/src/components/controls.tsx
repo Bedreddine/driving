@@ -17,7 +17,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { durations, ease, nativeDriver, useReducedMotion } from '@/lib/motion';
-import { fonts, tabular, useTheme } from '@/lib/theme';
+import { fonts, tabular, useTheme, radius } from '@/lib/theme';
 
 export type IconName = ComponentProps<typeof Feather>['name'];
 
@@ -156,7 +156,7 @@ export function Button({ title, onPress, kind = 'primary', size = 'md', icon, tr
             gap: z.gap,
             minHeight: z.height,
             paddingHorizontal: z.padX,
-            borderRadius: 3,
+            borderRadius: radius.control,
             overflow: 'hidden',
           },
           solid
@@ -225,9 +225,15 @@ export function FieldShell({
   const reduced = useReducedMotion();
   const [up] = useState(() => new Animated.Value(floated ? 1 : 0));
   const [shake] = useState(() => new Animated.Value(0));
+  // Focus: a soft amber halo opens around the box and the icon lifts a little.
+  const [ring] = useState(() => new Animated.Value(focused ? 1 : 0));
   useEffect(() => {
     Animated.timing(up, { toValue: floated ? 1 : 0, duration: reduced ? 0 : durations.focus, easing: ease, useNativeDriver: nativeDriver }).start();
   }, [up, floated, reduced]);
+  useEffect(() => {
+    if (reduced) ring.setValue(focused ? 1 : 0);
+    else Animated.spring(ring, { toValue: focused ? 1 : 0, speed: 18, bounciness: 0, useNativeDriver: nativeDriver }).start();
+  }, [ring, focused, reduced]);
   // A new error: the box shakes once, so the eye finds it.
   const hadError = useRef(!!error);
   useEffect(() => {
@@ -244,6 +250,21 @@ export function FieldShell({
   const thick = focused || !!error;
   return (
     <Animated.View style={{ marginVertical: 7, transform: [{ translateX: shake }] }}>
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: -4,
+          bottom: -4,
+          left: -4,
+          right: -4,
+          borderRadius: radius.control + 4,
+          borderWidth: 3,
+          borderColor: error ? theme.error : theme.primary,
+          opacity: ring.interpolate({ inputRange: [0, 1], outputRange: [0, 0.28] }),
+          transform: [{ scale: ring.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
+        }}
+      />
       <View
         style={{
           flexDirection: 'row',
@@ -254,12 +275,14 @@ export function FieldShell({
           // Same outer size whichever border: no jump on focus.
           margin: thick ? 0 : 0.5,
           borderColor: error ? theme.error : focused ? theme.primary : theme.edge,
-          borderRadius: 3,
+          borderRadius: radius.control,
         }}
       >
         {icon ? (
           <View style={{ position: 'absolute', left: 15, top: multiline ? 22 : 0, bottom: multiline ? undefined : 0, justifyContent: 'center' }}>
-            <Icon name={icon} size={20} color={error ? theme.error : focused ? theme.primary : theme.label} />
+            <Animated.View style={{ transform: [{ scale: ring.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] }) }] }}>
+              <Icon name={icon} size={20} color={error ? theme.error : focused ? theme.primary : theme.label} />
+            </Animated.View>
           </View>
         ) : null}
         <Animated.Text
@@ -428,7 +451,7 @@ export function Toggle({ label, value, onChange }: { label: string; value: boole
         minHeight: 56,
         paddingVertical: 8,
         paddingHorizontal: 4,
-        borderRadius: 3,
+        borderRadius: radius.control,
         backgroundColor: hovered ? theme.control : 'transparent',
       })}
     >
@@ -478,7 +501,7 @@ export function Stepper({ label, value, min = 0, max, onChange }: { label: strin
         style={({ pressed, hovered }) => ({
           width: 48,
           height: 48,
-          borderRadius: 3,
+          borderRadius: radius.control,
           borderWidth: 1.5,
           alignItems: 'center',
           justifyContent: 'center',
