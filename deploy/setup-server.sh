@@ -18,6 +18,21 @@ ask() { local v; read -r -p "$1: " v; printf '%s' "$v"; }
 # Single-quoted for .env (read by both Docker Compose and bash): any character is safe.
 quote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 ask_secret() { local v; read -r -s -p "$1: " v; echo >&2; printf '%s' "$v"; }
+# Browser push keys (VAPID), made with openssl only: a P-256 key pair in the form the backend reads
+# (com.taxi.notification.VapidKeys): base64url without padding, the public key as the raw 65-byte uncompressed
+# point (04 || X || Y), the private key as the raw 32-byte number.
+b64url() { base64 | tr -d '\n=' | tr '/+' '_-'; }
+vapid_keys() {
+  local key
+  key=$(openssl ecparam -name prime256v1 -genkey -noout)
+  # SEC1 DER: 30 77 02 01 01 04 20 <32-byte private key> ...; SubjectPublicKeyInfo DER ends with the 65-byte point.
+  VAPID_PRIVATE_KEY=$(printf '%s\n' "$key" | openssl ec -outform DER 2>/dev/null | tail -c +8 | head -c 32 | b64url)
+  VAPID_PUBLIC_KEY=$(printf '%s\n' "$key" | openssl ec -pubout -outform DER 2>/dev/null | tail -c 65 | b64url)
+  if [ "${#VAPID_PUBLIC_KEY}" -ne 87 ] || [ "${#VAPID_PRIVATE_KEY}" -ne 43 ]; then
+    echo "Could not make the browser push keys with openssl." >&2
+    exit 1
+  fi
+}
 
 # ---------------------------------------------------------------- Docker
 if ! command -v docker >/dev/null 2>&1; then
@@ -82,6 +97,7 @@ if [ ! -f .env ]; then
     SMTP_PASSWORD=$(ask_secret "SMTP password (hidden)")
     MAIL_FROM=$(ask "Sender address (e.g. contact@your-domain)")
   fi
+  vapid_keys
   umask 077
   cat > .env <<EOF
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
@@ -98,13 +114,26 @@ MAIL_FROM=$MAIL_FROM
 MAIL_REPLY_TO=
 PUSH_ENABLED=true
 SMS_ENABLED=false
+VAPID_PUBLIC_KEY=$VAPID_PUBLIC_KEY
+VAPID_PRIVATE_KEY=$VAPID_PRIVATE_KEY
+VAPID_SUBJECT=https://$DOMAIN
 EOF
-  echo "Saved in $DIR/.env (readable only by you). Fresh random database password and login secret generated."
+  echo "Saved in $DIR/.env (readable only by you). Fresh random database password, login secret and browser push keys generated."
+elif ! grep -q '^VAPID_PUBLIC_KEY=..*' .env; then
+  # Installed before browser push: add a key pair once (never replaced: browsers subscribe with that key).
+  say "Browser push keys"
+  vapid_keys
+  DOMAIN_NOW=$(sed -n 's/^DOMAIN=//p' .env | head -n 1)
+  grep -v '^VAPID_PUBLIC_KEY=\|^VAPID_PRIVATE_KEY=\|^VAPID_SUBJECT=' .env > .env.new || true
+  printf 'VAPID_PUBLIC_KEY=%s\nVAPID_PRIVATE_KEY=%s\nVAPID_SUBJECT=https://%s\n' \
+    "$VAPID_PUBLIC_KEY" "$VAPID_PRIVATE_KEY" "$DOMAIN_NOW" >> .env.new
+  cat .env.new > .env && rm -f .env.new
+  echo "Added to $DIR/.env."
 fi
 set -a; . ./.env; set +a
 
 # ---------------------------------------------------------------- Start
-say "Starting (database, server, website, HTTPS)"
+say "Starting (database, Kafka, server, website, HTTPS)"
 "${COMPOSE[@]}" pull
 "${COMPOSE[@]}" up -d --no-build --remove-orphans
 

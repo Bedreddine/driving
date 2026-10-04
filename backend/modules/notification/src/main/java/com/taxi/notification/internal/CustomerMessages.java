@@ -44,7 +44,11 @@ class CustomerMessages {
     }
 
     private void insert(UUID rideId, String channel, String to, String subject, String body) {
-        jdbc.sql("insert into customer_messages (ride_id, channel, recipient, subject, body) values (:r, :c, :to, :s, :b)")
+        // A ride deleted meanwhile (the event is read from Kafka after the change): nothing to send.
+        jdbc.sql("""
+                insert into customer_messages (ride_id, channel, recipient, subject, body)
+                select :r, :c, :to, :s, :b
+                where cast(:r as uuid) is null or exists (select 1 from rides where id = :r)""")
                 .param("r", rideId).param("c", channel).param("to", to).param("s", subject).param("b", body).update();
     }
 
@@ -81,9 +85,8 @@ class CustomerMessages {
 
     /**
      * An erased customer (account deletion or GDPR request): the emails / SMS about their rides hold their address,
-     * name and trip, so they go too, sent or not (same transaction).
+     * name and trip, so they go too, sent or not. Called by {@link DomainEventConsumer} (event from Kafka).
      */
-    @org.springframework.context.event.EventListener
     void on(com.taxi.booking.CustomerForgotten e) {
         if (!e.rideIds().isEmpty()) {
             jdbc.sql("delete from customer_messages where ride_id in (:ids)").param("ids", e.rideIds()).update();

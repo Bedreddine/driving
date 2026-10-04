@@ -13,7 +13,6 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
-import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -123,8 +122,7 @@ class WebPushes implements DisposableBean {
         }
     }
 
-    /** An erased customer: their browsers are forgotten too (same transaction). */
-    @EventListener
+    /** An erased customer: their browsers are forgotten too. Called by {@link DomainEventConsumer} (from Kafka). */
     void on(CustomerForgotten e) {
         if (!e.rideIds().isEmpty()) {
             jdbc.sql("delete from web_push_subscriptions where ride_id in (:ids)").param("ids", e.rideIds()).update();

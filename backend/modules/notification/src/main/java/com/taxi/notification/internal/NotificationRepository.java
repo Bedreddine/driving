@@ -24,8 +24,16 @@ class NotificationRepository {
         this.json = json;
     }
 
+    /**
+     * Notices are stored by the Kafka consumer, after the change: an account or a ride deleted meanwhile is skipped
+     * (instead of a foreign-key error that would send the whole event to the dead-letter topic).
+     */
     void insert(UUID recipientId, UUID rideId, String kind, Map<String, Object> payload) {
-        jdbc.sql("insert into notifications (recipient_id, ride_id, kind, payload) values (:r, :ride, :k, cast(:p as jsonb))")
+        jdbc.sql("""
+                insert into notifications (recipient_id, ride_id, kind, payload)
+                select :r, :ride, :k, cast(:p as jsonb)
+                where exists (select 1 from users where id = :r)
+                  and (cast(:ride as uuid) is null or exists (select 1 from rides where id = :ride))""")
                 .param("r", recipientId).param("ride", rideId).param("k", kind)
                 .param("p", json.writeValueAsString(payload == null ? Map.of() : payload))
                 .update();

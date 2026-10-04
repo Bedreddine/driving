@@ -98,7 +98,7 @@ class Notices {
 
         /** Publishes even without notices, so open screens still refresh. */
         void publish() {
-            events.publishEvent(new RideChanged(rideId, customerUser, driverUser, List.copyOf(notices), customer, trip));
+            events.publishEvent(new RideChanged(UUID.randomUUID(), rideId, customerUser, driverUser, List.copyOf(notices), customer, trip));
         }
     }
 }

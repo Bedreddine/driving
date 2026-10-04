@@ -82,7 +82,7 @@ class ReviewService implements RideReviews {
         var saved = reviews.save(ride.id(), rating, comment, Boolean.TRUE.equals(in.showPublicly()), city)
                 .orElseThrow(() -> ApiException.conflict("REVIEW_LOCKED"));
         if (saved.created()) {
-            events.publishEvent(new ReviewSubmitted(saved.id(), ride.id(), rating));
+            events.publishEvent(new ReviewSubmitted(UUID.randomUUID(), saved.id(), ride.id(), rating));
         }
     }
 

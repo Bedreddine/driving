@@ -23,6 +23,7 @@ Everything is open source and free to run:
 |---|---|
 | Backend API | Java 21, Spring Boot 4.1, Spring Modulith, Gradle |
 | Database | PostgreSQL 17 + Flyway migrations |
+| Events between modules | Apache Kafka 4.3 (KRaft, one node), Spring for Apache Kafka, Spring Modulith outbox |
 | iPhone, Android and back-office website (one codebase) | [Expo](https://expo.dev) + Expo Router |
 | Maps | [MapLibre](https://maplibre.org) (website and phones) with [OpenFreeMap](https://openfreemap.org) tiles, restyled at night; no API key |
 | Address search | [Photon](https://photon.komoot.io) (OpenStreetMap) |
@@ -44,7 +45,54 @@ apps/mobile/                 Expo app: customer, driver and back office (src/app
 docs/designs/                Design document
 ```
 
-The backend is a **modular monolith**: one deployable app whose modules only talk through their public API and events. Spring Modulith checks the boundaries in the tests (`ModularityTest`), so any module can later become its own service without a rewrite.
+The backend is a **modular monolith**: one deployable app whose modules only talk through their public API and events. Spring Modulith checks the boundaries in the tests (`ModularityTest`), so any module can later become its own service without a rewrite. The events between booking and notifications go through Kafka (next section).
+
+## Events and Kafka
+
+Modules talk through **domain events**. The ones another part of the app reacts to later (ride created or changed, ride-day moment, message, new review, customer erased) travel through **Apache Kafka**, with a **transactional outbox** so that none is lost or invented:
+
+```
+ booking / review module                       PostgreSQL                         Kafka (KRaft, 1 node)
+ ───────────────────────                       ──────────                         ─────────────────────
+ change saved  ─┐  same transaction  ┌──────►  rides, reviews...
+ event published┘ ──────────────────►└──────►  event_publication (outbox)
+                                                     │ after commit, one sender thread, in order
+                                                     └───────────────────────────► taxi.ride-events      (key: ride id)
+                                                       deleted once Kafka has it    taxi.customer-events  (key: contact id)
+                                                                                         │
+ notification module (@KafkaListener, group taxi-notification) ◄─────────────────────────┘
+   one transaction: processed_events (event id) + notices + queued emails / SMS (customer_messages)
+   then: WebSocket "rides-changed" / "ride-message", browser push; phone push and emails leave from their own outboxes
+   failing 6 times (pauses 1 s → 30 s), or unreadable ──► taxi.ride-events.DLT / taxi.customer-events.DLT
+```
+
+- **Publishing (outbox):** an event class annotated `@Externalized("taxi.ride-events::#{rideId()}")` is saved by Spring Modulith in `event_publication` in the transaction that publishes it, then sent to Kafka after the commit. A send that fails stays there and is sent again every minute (and at the next start). So: no ride change without its event, and no event for a change that was rolled back.
+- **Order:** one ride's events share a key, hence a partition, and are sent by a single thread in commit order: they are handled in the order they happened.
+- **Consuming (at least once, handled once):** each event has an `event_id`; the consumer writes it to `processed_events` in the same database transaction as the notices and queued emails. A second delivery of the same event changes nothing. This is how "no ride change without its notifications" holds now: outbox + at-least-once delivery + idempotent consumer.
+- **Failures:** a message that keeps failing (database down...) is retried in place, then copied to the dead-letter topic (`<topic>.DLT`, kept 14 days) with the reason in its headers; an unreadable message goes there at once. Logs show topic, partition, offset and the error type, never the content.
+- **Message format:** JSON body in snake_case (the event record), header `taxi-event` with the event name (`RideChanged`, `RideMomentReached`, `RideMessagePosted`, `ReviewSubmitted`, `CustomerForgotten`). (Spring also adds `__TypeId__` with the Java class; the consumer does not rely on it.)
+- **Personal data:** messages hold names, emails, phone numbers and addresses. Kafka deletes them after 7 days; the outbox row is deleted as soon as Kafka has the event. An erased customer's events still waiting are not acted on (the consumer checks the ride first).
+
+| Topic | Events | Key | Partitions | Kept |
+|---|---|---|---|---|
+| `taxi.ride-events` | RideChanged, RideMomentReached, RideMessagePosted, ReviewSubmitted | ride id | 3 | 7 days |
+| `taxi.customer-events` | CustomerForgotten | contact id | 3 | 7 days |
+| `taxi.ride-events.DLT`, `taxi.customer-events.DLT` | messages that could not be handled | same | 3 | 14 days |
+
+The app creates the topics at startup. **See the messages** (Docker stack; for `npm run backend` use `docker compose -p app exec kafka ...` from `backend/app`):
+
+```bash
+docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 \
+  --topic taxi.ride-events --from-beginning --formatter-property print.key=true --formatter-property print.headers=true
+docker compose exec kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 \
+  --describe --group taxi-notification            # LAG 0 = everything handled
+docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 \
+  --topic taxi.ride-events.DLT --from-beginning --formatter-property print.headers=true   # what failed, and why
+docker compose exec postgres psql -U taxi -c "select event_type, status, publication_date from event_publication"  # not yet sent
+```
+
+A dead letter is not replayed automatically: once the cause is fixed, send it back to its topic (e.g. `kafka-console-producer.sh` with the same key), handling is idempotent.
+
 
 ## Run it on your computer
 
@@ -52,7 +100,7 @@ You need Java 21, Node 22 (see `.node-version`; with fnm: `fnm use`) and Docker 
 
 ```bash
 npm install
-npm run backend        # Spring Boot on :8080; starts PostgreSQL in Docker automatically (backend/app/compose.yaml)
+npm run backend        # Spring Boot on :8080; starts PostgreSQL, Kafka (localhost:19092) and Mailpit in Docker automatically (backend/app/compose.yaml)
 cp apps/mobile/.env.example apps/mobile/.env
 npm run web            # back office + app in the browser
 npm run mobile         # phone: needs a development build because of the native map (see docs/MOBILE.md); set EXPO_PUBLIC_API_URL to your computer's IP
@@ -71,7 +119,7 @@ Test accounts (created on an empty database by the `dev` profile, used by `npm r
 
 ```bash
 npm test               # everything below
-npm run test:backend   # 127 tests: unit + integration on a real PostgreSQL (Testcontainers) + module boundaries
+npm run test:backend   # 154 tests: unit + integration on a real PostgreSQL and Kafka (Testcontainers) + module boundaries
 npm run test:app       # 42 app tests (Paris time, prices, texts, reviewer names, map style, places, QR animation, remember-me)
 cd apps/mobile && npx tsc --noEmit && npx expo lint
 ```
@@ -101,7 +149,7 @@ All JSON is snake_case. Errors come back as `{"error": "CODE"}` (e.g. `SLOT_TAKE
 | `POST /api/push-tokens`, `GET /api/notifications` | Notifications |
 | `ws://…/ws?token=ACCESS_TOKEN` | Live updates: `{"type":"rides-changed"}`, `{"type":"ride-message","ride_id":"…"}` |
 
-Browser push (guests) needs a VAPID key pair: run `java -jar backend/app/build/libs/app-0.1.0.jar --taxi.generate-vapid` once (no database needed) and set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` contact, default `mailto:no-reply@localhost`). Without keys browser push is off; the dev profile makes temporary keys at startup.
+Browser push (guests) needs a VAPID key pair: `./scripts/docker-env.sh` and `deploy/setup-server.sh` put one in `.env` (made with openssl), or run `java -jar backend/app/build/libs/app-0.1.0.jar --taxi.generate-vapid` once (no database needed) and set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` or `https:` contact, default `mailto:no-reply@localhost`). Without keys browser push is off; the dev profile makes temporary keys at startup.
 
 ## Set up your own business
 
@@ -118,10 +166,10 @@ Browser push (guests) needs a VAPID key pair: run `java -jar backend/app/build/l
 
 ## Run everything with Docker
 
-One command runs the database, the backend API and the website (nothing else to install but Docker):
+One command runs the database, Kafka, the backend API and the website (nothing else to install but Docker):
 
 ```bash
-./scripts/docker-env.sh      # creates .env with a random database password and login secret (once)
+./scripts/docker-env.sh      # creates .env with a random database password, login secret and browser push keys (once)
 docker compose up -d --build # first build about 5 minutes, then seconds
 ```
 
@@ -140,7 +188,7 @@ docker compose run --rm backend --taxi.make-owner=you@example.com --server.port=
 | `docker compose logs -f backend` | Follow the server log (emails are written there until SMTP is set) |
 | `docker compose up -d --build` | Update after a code change |
 | `docker compose --profile mail up -d` | Also start Mailpit (http://localhost:8025) to see the emails; set `SMTP_HOST=mailpit` and `SMTP_PORT=1025` in `.env` |
-| `docker compose down` | Stop (data is kept in the `pgdata` volume) |
+| `docker compose down` | Stop (data is kept in the `pgdata` and `kafkadata` volumes) |
 | `docker compose down -v` | Stop **and erase all data** |
 | `docker compose exec postgres pg_dump -U taxi taxi > backup.sql` | Back up the database |
 
@@ -166,11 +214,13 @@ Step by step (GitHub Actions + a server + HTTPS): [docs/DEPLOY.md](docs/DEPLOY.m
 cd backend && ./gradlew :app:bootJar      # backend/app/build/libs/app-0.1.0.jar
 ```
 
-Run the jar (or a container built with `./gradlew :app:bootBuildImage`) on any server with PostgreSQL. Settings (environment variables):
+Run the jar (or a container built with `./gradlew :app:bootBuildImage`) on any server with PostgreSQL and Kafka. Settings (environment variables):
 
 | Variable | Meaning |
 |---|---|
 | `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD` | PostgreSQL connection (`jdbc:postgresql://host:5432/taxi`) |
+| `SPRING_KAFKA_BOOTSTRAP_SERVERS` | Kafka broker(s) (`host:9092`, default `localhost:9092`) |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Browser push keys (see API overview); empty: browser push off |
 | `JWT_SECRET` | **Required**, at least 32 random characters. Keep it secret |
 | `CORS_ORIGINS` | Back-office website address(es), comma separated |
 | `OSRM_URL` | Your own routing server (default: public demo server) |
@@ -190,7 +240,7 @@ The public Photon and OSRM servers are free but meant for light use. For real tr
 
 ### Background jobs
 
-Expiry of unanswered requests (every minute), reminders for rides left open, phone pushes (every 30 s) and nightly data retention run inside the backend (`@Scheduled`). With **one** backend instance nothing else is needed; with several, add a lock (e.g. ShedLock) so each job runs once.
+Expiry of unanswered requests (every minute), reminders for rides left open, phone pushes (every 30 s), resending events Kafka did not take (every minute) and nightly data retention run inside the backend (`@Scheduled`). With **one** backend instance nothing else is needed; with several, add a lock (e.g. ShedLock) so each job runs once, and note that live updates (WebSocket) only reach the screens connected to the instance that handled the event.
 
 ## Not done yet
 

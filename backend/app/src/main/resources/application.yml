@@ -36,6 +36,43 @@ spring:
       pool:
         # Background jobs run side by side: a slow mail server never holds up expiry or reminders.
         size: 4
+  kafka:
+    # Domain events (ride changes, moments, messages, reviews, erasures) go through Kafka, see README "Events and
+    # Kafka". Set with SPRING_KAFKA_BOOTSTRAP_SERVERS (docker compose: kafka:9092; dev profile: localhost:19092).
+    bootstrap-servers: localhost:9092
+    producer:
+      # Bodies are JSON bytes made by the app (EventsConfiguration); keys are ride / contact ids.
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        # Broker down: give up quickly; the event stays in the outbox (event_publication) and is sent again later.
+        max.block.ms: 10000
+        request.timeout.ms: 10000
+        delivery.timeout.ms: 30000
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      # A new consumer group starts from the oldest message still kept (handling is idempotent).
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+  modulith:
+    events:
+      # Outbox table created by Flyway (V15), not by Spring Modulith.
+      jdbc:
+        schema-initialization:
+          enabled: false
+      # Once Kafka has an event its outbox row is deleted (the table holds personal data only while needed).
+      completion-mode: delete
+      # Events not yet sent when the app stopped (or crashed) are sent at the next start.
+      republish-outstanding-events-on-restart: true
+      # Publications stuck this long are marked failed, then sent again by EventsConfiguration.Resubmission.
+      staleness:
+        published: 5m
+        processing: 5m
+        resubmitted: 5m
+        check-interval: 1m
   docker:
     compose:
       # `./gradlew :app:bootRun` starts PostgreSQL from app/compose.yaml automatically (development only).
@@ -97,9 +134,21 @@ taxi:
   driver:
     # Position updates from the driver's phone: about one per second, small bursts allowed.
     max-location-updates-per-5s: 5
+  events:
+    # Handling an event that fails (database down...) is retried with growing pauses, then the message goes to the
+    # dead-letter topic (taxi.ride-events.DLT / taxi.customer-events.DLT).
+    retry:
+      first-pause: 1s
+      max-pause: 30s
+      attempts: 6
   sms:
     # SMS always costs money per message. Off until a provider is chosen (texts are only logged).
     enabled: ${SMS_ENABLED:false}
+
+logging:
+  level:
+    # The Kafka client is chatty at INFO (every connection, rebalance, partition): warnings only.
+    org.apache.kafka: WARN
 
 management:
   health:

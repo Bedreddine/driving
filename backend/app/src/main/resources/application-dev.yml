@@ -7,6 +7,16 @@ logging:
     # Development: show the full text of customer emails / SMS that are only logged (never on in production).
     com.taxi.notification.internal.CustomerChannels: DEBUG
 spring:
+  docker:
+    compose:
+      start:
+        # Always run `docker compose up` (a no-op for running services): by default Spring Boot skips it as soon as
+        # one service runs, so a service added later (Kafka) would never start on an existing setup.
+        skip: never
+  kafka:
+    # Kafka from app/compose.yaml (started with bootRun; Spring Boot has no Docker Compose service connection for
+    # Kafka, hence the fixed port).
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
   mail:
     # Mailpit (compose.yaml): emails are caught locally, read them at http://localhost:8025
     host: ${SPRING_MAIL_HOST:localhost}

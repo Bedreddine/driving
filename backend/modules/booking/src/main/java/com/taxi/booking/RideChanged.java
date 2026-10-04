@@ -4,15 +4,19 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.modulith.events.Externalized;
 
 /**
  * Published inside the transaction whenever a ride is created or changes status.
  * The notification module stores the notices, emails / texts the customer, and tells open screens to refresh.
+ * Saved with the change (outbox), then sent to Kafka, keyed by ride: one ride's events stay in order.
  *
+ * @param eventId        unique per event, so that consumers can ignore a delivery they already handled
  * @param customerUserId the customer's account, or null for guests and phone customers
  * @param driverUserId   the driver's account, or null if the driver has none yet
  */
-public record RideChanged(UUID rideId, UUID customerUserId, UUID driverUserId, List<Notice> notices,
+@Externalized(EventTopics.RIDE_EVENTS + "::#{rideId()}")
+public record RideChanged(UUID eventId, UUID rideId, UUID customerUserId, UUID driverUserId, List<Notice> notices,
                           Customer customer, Trip trip) {
 
     /**

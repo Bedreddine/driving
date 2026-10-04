@@ -248,7 +248,7 @@ class RideLifecycle {
         }
         rides.stripPersonalData(contact.get().id());
         contacts.anonymize(contact.get().id());
-        events.publishEvent(new CustomerForgotten(contact.get().id(), rides.idsForContact(contact.get().id())));
+        events.publishEvent(new CustomerForgotten(UUID.randomUUID(), contact.get().id(), rides.idsForContact(contact.get().id())));
     }
 
     // ------------------------------------------------------------------ helpers

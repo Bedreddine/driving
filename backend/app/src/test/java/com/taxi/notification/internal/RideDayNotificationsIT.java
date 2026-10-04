@@ -74,6 +74,7 @@ class RideDayNotificationsIT extends IntegrationTest {
     }
 
     private List<String> endpoints() {
+        eventsDelivered();
         return jdbc.sql("select endpoint from web_push_subscriptions order by created_at").query(String.class).list();
     }
 
@@ -163,6 +164,7 @@ class RideDayNotificationsIT extends IntegrationTest {
         var id = bookId(clientToken, ride(slot(12)));
         call(post("/api/rides/" + id + "/messages"), ownerToken, Map.of("body", "Which terminal?"), 201);
         verify(live, timeout(5000)).rideMessage(List.of(clientId), id);
+        eventsDelivered();
         var notice = call(get("/api/notifications"), clientToken, null, 200).get(0);
         assertThat(notice.get("kind").asString()).isEqualTo("ride_message");
         assertThat(notice.get("payload").get("from").asString()).isEqualTo("driver");

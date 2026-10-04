@@ -2,9 +2,11 @@ package com.taxi.booking;
 
 import java.time.Instant;
 import java.util.UUID;
+import org.springframework.modulith.events.Externalized;
 
 /**
  * Published inside the transaction when a ride-day moment is recorded for the first time (each kind once per ride).
+ * Sent to Kafka like {@link RideChanged} (same topic, keyed by ride).
  * The notification module tells the customer (app push, browser push, SMS, and an email for "on_the_way" only)
  * and refreshes the open screens.
  *
@@ -13,5 +15,6 @@ import java.util.UUID;
  * @param customerUserId the customer's account, or null for guests and phone customers
  * @param driverUserId   the driver's account, or null
  */
+@Externalized(EventTopics.RIDE_EVENTS + "::#{rideId()}")
 public record RideMomentReached(UUID eventId, UUID rideId, String kind, Instant at, UUID customerUserId,
                                 UUID driverUserId, RideChanged.Customer customer, RideChanged.Trip trip) {}

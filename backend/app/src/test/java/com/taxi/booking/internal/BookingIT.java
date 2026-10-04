@@ -95,6 +95,7 @@ class BookingIT extends IntegrationTest {
                 .query(Boolean.class).single();
         assertThat(deadline).isTrue();
 
+        eventsDelivered();
         var notes = call(get("/api/notifications"), ownerToken, null, 200);
         assertThat(notes.get(0).get("kind").asString()).isEqualTo("new_request");
     }

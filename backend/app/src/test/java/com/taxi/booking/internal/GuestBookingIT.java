@@ -51,6 +51,7 @@ class GuestBookingIT extends IntegrationTest {
     }
 
     private List<Map<String, Object>> emails() {
+        eventsDelivered();
         return jdbc.sql("select recipient, subject, body from customer_messages where channel = 'email' order by id")
                 .query().listOfRows();
     }
@@ -75,6 +76,7 @@ class GuestBookingIT extends IntegrationTest {
         assertThat(contact).containsEntry("language", "en").containsEntry("guest", true);
 
         // The driver sees the request like any other
+        eventsDelivered();
         assertThat(call(get("/api/notifications"), ownerToken, null, 200).get(0).get("kind").asString()).isEqualTo("new_request");
         // The client gets a confirmation email in English
         assertThat(emails()).singleElement().satisfies(m -> {
@@ -122,6 +124,7 @@ class GuestBookingIT extends IntegrationTest {
         var token = token(guestBook(VIP, ride(slot(10)), false));
         call(post("/api/public/bookings/" + token + "/cancel"), null, null, 204);
         assertThat(call(get("/api/public/bookings/" + token), null, null, 200).get("status").asString()).isEqualTo("cancelled");
+        eventsDelivered();
         assertThat(call(get("/api/notifications"), ownerToken, null, 200).get(0).get("kind").asString())
                 .isEqualTo("ride_cancelled_by_customer");
         assertThat(emails().getLast().get("subject").toString()).endsWith("Cancellation confirmed");

@@ -89,6 +89,7 @@ class RideLifecycleIT extends IntegrationTest {
         act(id, "accept", ownerToken, null, 204);
         assertThat(status(id)).isEqualTo("accepted");
         assertThat(price(id, "agreed_price")).isEqualByComparingTo("20.00");
+        eventsDelivered();
         assertThat(call(get("/api/notifications"), clientToken, null, 200).get(0).get("kind").asString())
                 .isEqualTo("ride_accepted");
     }
@@ -220,6 +221,7 @@ class RideLifecycleIT extends IntegrationTest {
         jdbc.sql("update rides set answer_deadline = now() - interval '1 minute' where id = :id").param("id", id).update();
         assertThat(lifecycle.expireOverdue()).isEqualTo(1);
         assertThat(status(id)).isEqualTo("expired");
+        eventsDelivered();
         assertThat(call(get("/api/notifications"), clientToken, null, 200).get(0).get("kind").asString())
                 .isEqualTo("ride_expired");
         assertThat(actError(id, "accept", ownerToken, null, 409)).isEqualTo("WRONG_STATUS");
@@ -252,9 +254,11 @@ class RideLifecycleIT extends IntegrationTest {
         var open = bookId(clientToken, ride(slot(10)));
         var contact = contactOf(clientId);
         var emailsToClient = "select count(*) from customer_messages where recipient = 'client@taxi.test'";
+        eventsDelivered();
         assertThat(jdbc.sql(emailsToClient).query(Integer.class).single()).isPositive();
         call(delete("/api/me"), clientToken, null, 204);
         // The emails about their rides (address, name, trip) are erased too
+        eventsDelivered();
         assertThat(jdbc.sql(emailsToClient).query(Integer.class).single()).isZero();
 
         assertThat(status(open)).isEqualTo("cancelled");

@@ -7,6 +7,7 @@ push to main ──► GitHub Actions: tests ──► images on ghcr.io ──�
                                                                                        Caddy (HTTPS)
                                                                                        └─ website + API
                                                                                        └─ PostgreSQL
+                                                                                       └─ Kafka (events)
 ```
 
 ## Fast path (Oracle Cloud free + DuckDNS, about 30 minutes)
@@ -26,7 +27,7 @@ The sections below explain each step in detail.
 
 ## 1. A server (once)
 
-Any Linux machine with 2 GB of memory or more and Docker:
+Any Linux machine with **3 GB of memory or more** (4 GB is comfortable) and Docker. Kafka, which carries the events between the booking and notification parts, needs about **512 MB more RAM** than before (a 384 MB Java heap plus its own overhead; `docker stats` shows it); the database, the backend and the website take the rest:
 
 - **Oracle Cloud "Always Free"** (free, an Arm VM with plenty of memory), or
 - a small VPS (Hetzner, OVH, Scaleway…, about 4–6 € a month).
@@ -90,6 +91,8 @@ In `.env`, set at least:
 | `SITE_URL` | `https://book.your-domain.com` |
 | `GHCR_OWNER` | your GitHub user in lowercase, e.g. `bedreddine` |
 | `SMTP_*`, `MAIL_FROM` | your mailbox's SMTP settings, for client emails |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | browser push keys, already made by `docker-env.sh`; keep them (browsers subscribed with one key only accept that key) |
+| `VAPID_SUBJECT` | a contact for the push services: `mailto:you@your-domain.com` or `https://book.your-domain.com` |
 
 ## 4. Start
 

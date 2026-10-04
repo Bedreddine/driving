@@ -9,7 +9,7 @@ on:
 
 jobs:
   backend:
-    name: Backend tests (Java 21, PostgreSQL in Testcontainers)
+    name: Backend tests (Java 21, PostgreSQL and Kafka in Testcontainers)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

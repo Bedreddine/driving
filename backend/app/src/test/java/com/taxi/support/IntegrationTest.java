@@ -68,10 +68,11 @@ public abstract class IntegrationTest {
 
     @BeforeEach
     void resetDatabase() throws Exception {
+        eventsDelivered(); // the previous test's events are handled before its data goes
         jdbc.sql("""
                 truncate notifications, push_tokens, ride_events, rides, contact_notes, contacts, time_off,
                   working_hours, surcharges, fixed_prices, zones, pricing_settings, drivers, refresh_tokens,
-                  user_roles, users, customer_messages cascade""").update();
+                  user_roles, users, customer_messages, processed_events cascade""").update();
         jdbc.sql("delete from business_profile").update();
         jdbc.sql("insert into business_profile default values").update();
 
@@ -99,6 +100,14 @@ public abstract class IntegrationTest {
         ownerToken = login("owner@taxi.test"); // new token carries the new roles
         clientToken = signUp("client@taxi.test", "Test Client", "+33611111111");
         clientId = UUID.fromString(call(get("/api/me"), clientToken, null, 200).get("id").asString());
+    }
+
+    /**
+     * Domain events reach the notification module through Kafka, after the change: waits until every event published
+     * so far is sent and handled (notices stored, emails queued...). Call before checking those.
+     */
+    protected void eventsDelivered() {
+        EventsSettled.await(jdbc);
     }
 
     // ------------------------------------------------------------------ time

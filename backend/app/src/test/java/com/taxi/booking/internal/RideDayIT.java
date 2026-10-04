@@ -67,6 +67,7 @@ class RideDayIT extends IntegrationTest {
     }
 
     private List<Map<String, Object>> emails() {
+        eventsDelivered();
         return jdbc.sql("select subject, body from customer_messages where channel = 'email' order by id").query().listOfRows();
     }
 
@@ -129,6 +130,7 @@ class RideDayIT extends IntegrationTest {
         var id = bookId(clientToken, ride(slot(10)));
         call(post("/api/rides/" + id + "/accept"), ownerToken, null, 204);
         moment(id, ownerToken, "on_the_way", 204);
+        eventsDelivered();
         var notices = call(get("/api/notifications"), clientToken, null, 200);
         assertThat(notices.get(0).get("kind").asString()).isEqualTo("driver_on_the_way");
         assertThat(notices.get(0).get("ride_id").asString()).isEqualTo(id.toString());
@@ -192,6 +194,7 @@ class RideDayIT extends IntegrationTest {
                 .containsExactly("client:Hello, I'm at door B", "driver:On my way");
 
         // The driver is told in the app (and by phone push), with the client's first name and the start of the text
+        eventsDelivered();
         var notice = call(get("/api/notifications"), ownerToken, null, 200).get(0);
         assertThat(notice.get("kind").asString()).isEqualTo("ride_message");
         assertThat(notice.get("payload").get("from_name").asString()).isEqualTo("Alice");
@@ -263,6 +266,7 @@ class RideDayIT extends IntegrationTest {
 
         call(post("/api/admin/contacts/" + contact + "/forget"), ownerToken, null, 204);
         assertThat(messageCount()).isZero();
+        eventsDelivered();
         assertThat(jdbc.sql("select count(*) from notifications where kind = 'ride_message'").query(Integer.class).single())
                 .as("notices quoting the conversation").isZero();
     }

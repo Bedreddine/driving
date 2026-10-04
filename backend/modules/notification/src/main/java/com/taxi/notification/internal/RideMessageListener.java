@@ -2,20 +2,19 @@ package com.taxi.notification.internal;
 
 import com.taxi.booking.Business;
 import com.taxi.booking.CustomerForgotten;
+import com.taxi.booking.RideDirectory;
 import com.taxi.booking.RideMessagePosted;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * Tells the other side of a ride's conversation about a new message (never by email):
  * client to driver: notice "ride_message" in the driver's app (and phone push) and a live "ride-message";
  * driver to client: browser push for guests who allowed it, and the notice in the app for account holders.
  * The notice holds the first 80 characters: deleted with the customer (CustomerForgotten) and after 90 days.
+ * Called by {@link DomainEventConsumer} for each event read from Kafka.
  */
 @Component
 class RideMessageListener {
@@ -26,20 +25,28 @@ class RideMessageListener {
     private final Business business;
     private final LiveUpdates live;
     private final WebPushes webPushes;
+    private final RideDirectory rides;
 
-    RideMessageListener(NotificationRepository repo, Business business, LiveUpdates live, WebPushes webPushes) {
+    RideMessageListener(NotificationRepository repo, Business business, LiveUpdates live, WebPushes webPushes,
+                        RideDirectory rides) {
         this.repo = repo;
         this.business = business;
         this.live = live;
         this.webPushes = webPushes;
+        this.rides = rides;
     }
 
-    /** Stored in the same transaction as the message. */
-    @EventListener
+    /** A message of an erased customer's ride (deleted with them) is not passed on any more. */
+    private boolean stillThere(RideMessagePosted e) {
+        var ride = rides.find(List.of(e.rideId())).get(e.rideId());
+        return ride != null && !ride.customerForgotten();
+    }
+
+    /** Inside the consumer's transaction. */
     void store(RideMessagePosted e) {
         var toDriver = "client".equals(e.from());
         var recipient = toDriver ? e.driverUserId() : e.customerUserId();
-        if (recipient == null) {
+        if (recipient == null || !stillThere(e)) {
             return;
         }
         var payload = new HashMap<String, Object>();
@@ -51,8 +58,10 @@ class RideMessageListener {
         repo.insert(recipient, e.rideId(), "ride_message", payload);
     }
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     void afterCommit(RideMessagePosted e) {
+        if (!stillThere(e)) {
+            return;
+        }
         var toDriver = "client".equals(e.from());
         var recipient = toDriver ? e.driverUserId() : e.customerUserId();
         if (recipient != null) {
@@ -66,8 +75,7 @@ class RideMessageListener {
         }
     }
 
-    /** An erased customer: the notices quoting their conversation go too (same transaction). */
-    @EventListener
+    /** An erased customer: the notices quoting their conversation go too. */
     void on(CustomerForgotten e) {
         repo.deleteMessageNotices(e.rideIds());
     }

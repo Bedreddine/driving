@@ -102,6 +102,7 @@ class ReviewsIT extends IntegrationTest {
         assertThat(review.get("status").asString()).isEqualTo("pending");
 
         // The owner is told once, about the new review
+        eventsDelivered();
         var notice = call(get("/api/notifications"), ownerToken, null, 200).get(0);
         assertThat(notice.get("kind").asString()).isEqualTo("new_review");
         assertThat(notice.get("ride_id").asString()).isEqualTo(ride.id().toString());
@@ -115,6 +116,7 @@ class ReviewsIT extends IntegrationTest {
         assertThat(page.get("review").get("show_publicly").asBoolean()).isTrue();
         assertThat(page.get("review").get("city").isNull()).isTrue();
         assertThat(reviewCount()).isEqualTo(1);
+        eventsDelivered();
         assertThat(jdbc.sql("select count(*) from notifications where kind = 'new_review'").query(Integer.class).single())
                 .isEqualTo(1);
     }
@@ -245,6 +247,7 @@ class ReviewsIT extends IntegrationTest {
         var ride = rawRide("accepted", Instant.now().minus(Duration.ofHours(3)), guest("James Smith", "js@example.com"));
         call(post("/api/rides/" + ride.id() + "/complete"), ownerToken, new LinkedHashMap<>(), 204);
 
+        eventsDelivered();
         var body = jdbc.sql("select body from customer_messages where channel = 'email' order by id desc limit 1")
                 .query(String.class).single();
         assertThat(body).contains("Leave us a review: https://elysee-chauffeur.example/b/" + ride.token());

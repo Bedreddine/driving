@@ -2,14 +2,21 @@ package com.taxi.notification.internal;
 
 import com.taxi.booking.Business;
 import com.taxi.booking.RideChanged;
+import com.taxi.booking.RideDirectory;
 import com.taxi.identity.UserDirectory;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
+/**
+ * Who is told about a ride change. Called by {@link DomainEventConsumer} for each {@link RideChanged} read from Kafka.
+ * <p>
+ * "No ride change without its notifications" still holds, in another way than before: the event is saved in the
+ * booking's own transaction (outbox, table event_publication), sent to Kafka until the broker has it, delivered at
+ * least once, and {@link #store} runs in one database transaction with the "already processed" mark
+ * (processed_events): a redelivery changes nothing.
+ */
 @Component
 class RideChangeListener {
 
@@ -18,24 +25,33 @@ class RideChangeListener {
     private final Business business;
     private final LiveUpdates live;
     private final UserDirectory users;
+    private final RideDirectory rides;
 
     RideChangeListener(NotificationRepository repo, CustomerMessages customerMessages, Business business,
-                       LiveUpdates live, UserDirectory users) {
+                       LiveUpdates live, UserDirectory users, RideDirectory rides) {
         this.repo = repo;
         this.customerMessages = customerMessages;
         this.business = business;
         this.live = live;
         this.users = users;
+        this.rides = rides;
     }
 
     /**
-     * Stored in the same transaction as the ride change: no change without its notifications.
      * In the app (and phone push) for people with an account; by email / SMS for every customer.
+     * Runs inside the consumer's transaction. A customer erased since the change (GDPR, the event was waiting in
+     * Kafka) is not written to any more; the driver's notices still go.
      */
-    @EventListener
     void store(RideChanged e) {
+        var ride = rides.find(List.of(e.rideId())).get(e.rideId());
+        if (ride == null) {
+            return; // ride deleted meanwhile: nobody to tell
+        }
         Business.Info info = null;
         for (var n : e.notices()) {
+            if (n.toCustomer() && ride.customerForgotten()) {
+                continue;
+            }
             if (n.recipientId() != null) {
                 repo.insert(n.recipientId(), e.rideId(), n.kind(), n.payload());
             }
@@ -53,9 +69,8 @@ class RideChangeListener {
         }
     }
 
-    /** Only after the change is saved, tell the open screens of the customer, the driver and admins to reload. */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    void refreshScreens(RideChanged e) {
+    /** Once the notices are saved, tell the open screens of the customer, the driver and admins to reload. */
+    void afterCommit(RideChanged e) {
         var targets = new ArrayList<>(users.adminIds());
         targets.add(e.customerUserId());
         targets.add(e.driverUserId());
